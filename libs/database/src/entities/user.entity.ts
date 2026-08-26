@@ -21,4 +21,10 @@ export class UserEntity {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @Column({ type: 'int', nullable: true })
+  otp?: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  otpExpiry?: Date | null;
 }

@@ -1,3 +1,3 @@
 export * from './database.module';
 export * from './entities/user.entity';
-export * from './dto/signUp.dto';
+export * from '../../common/dto/auth/signUp.dto';

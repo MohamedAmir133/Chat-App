@@ -25,7 +25,11 @@
       "@libs/database": ["libs/database/src"],
       "@libs/database/*": ["libs/database/src/*"],
       "@app/database": ["libs/database/src"],
-      "@app/database/*": ["libs/database/src/*"]
+      "@app/database/*": ["libs/database/src/*"],
+      "@libs/email": ["libs/Emails"],
+      "@libs/email/*": ["libs/Emails/*"],
+      "@libs/common": ["libs/common"],
+      "@libs/common/*": ["libs/common/*"]
     }
   }
 }
