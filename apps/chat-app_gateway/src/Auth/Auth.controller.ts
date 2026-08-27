@@ -1,6 +1,15 @@
 /*eslint-disable*/
 
-import { Body, Controller, Inject, Param, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Inject,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { SignUpDTO } from '@libs/database';
 import { firstValueFrom } from 'rxjs';
@@ -8,9 +17,11 @@ import { BadRequestException } from '@nestjs/common';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
 import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
 import type { Response } from 'express';
+import { AuthGuard } from 'libs/Guards';
+import type { Request } from 'express';
 
 const COOKIE_OPTIONS = {
-  maxAge: 1000 * 60 * 60 * 24 * 7, 
+  maxAge: 1000 * 60 * 60 * 24 * 7,
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production', // only secure in prod
   sameSite: 'strict' as const,
@@ -92,6 +103,27 @@ export class AuthHttpController {
         }),
       );
       res.cookie('jwt', result.token, COOKIE_OPTIONS);
+      return result;
+    } catch (err) {
+      throw new BadRequestException(err?.message || err);
+    }
+  }
+  @UseGuards(AuthGuard)
+  @Post('update-password')
+  async updatePassword(
+    @Body() { oldPassword, newPassword, confirmNewPassword }: { oldPassword: string; newPassword: string; confirmNewPassword: string },
+    @Req() req: Request,
+  ) {
+    try {
+      const userId = (req.user as any).id; // JWT payload contains { id }
+      const result = await firstValueFrom(
+        this.authClient.send('updatePassword', {
+          userId,
+          oldPassword,
+          newPassword,
+          confirmNewPassword,
+        }),
+      );
       return result;
     } catch (err) {
       throw new BadRequestException(err?.message || err);

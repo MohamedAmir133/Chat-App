@@ -29,7 +29,9 @@
       "@libs/email": ["libs/Emails"],
       "@libs/email/*": ["libs/Emails/*"],
       "@libs/common": ["libs/common"],
-      "@libs/common/*": ["libs/common/*"]
+      "@libs/common/*": ["libs/common/*"],
+      "@libs/guards": ["libs/Guards"],
+      "@libs/guards/*": ["libs/Guards/*"]
     }
   }
 }

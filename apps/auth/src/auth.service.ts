@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
 import { ResetPasswordDTO } from 'libs/common/dto/auth/resetPassword.dto';
 import { EmailService } from '@libs/email';
+import { UpdatePasswordDTO } from 'libs/common/dto/auth/updatePassword.dto';
 /*eslint-disable*/
 @Injectable()
 export class AuthService {
@@ -20,7 +21,7 @@ export class AuthService {
   ) {}
 
   createToken(user: UserEntity): string {
-    return this.jwtService.sign({ id: user.id });
+    return this.jwtService.sign({ id: user.id, role: user.role });
   }
 
   async signUp(signUpDTO: SignUpDTO) {
@@ -128,6 +129,32 @@ export class AuthService {
     return {
       status: 'success',
       message: 'Password reset successfully',
+      token,
+    };
+  }
+  async updatePassword(updatePasswordDTO: UpdatePasswordDTO) {
+    const user = await this.userRepository.findOneBy({ id: updatePasswordDTO.userId });
+    if (!user) {
+      throw new RpcException('User not found');
+    }
+    if (updatePasswordDTO.newPassword !== updatePasswordDTO.confirmNewPassword) {
+      throw new RpcException('newPassword and confirmNewPassword does not match');
+    }
+    const isPasswordValid = await bycrpt.compare(
+      updatePasswordDTO.oldPassword,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new RpcException('Old password is incorrect');
+    }
+    const hashPassword = await bycrpt.hash(updatePasswordDTO.newPassword, 10);
+    await this.userRepository.update(user.id, {
+      password: hashPassword,
+    });
+    const token = this.createToken(user);
+    return {
+      status: 'success',
+      message: 'Password updated successfully',
       token,
     };
   }

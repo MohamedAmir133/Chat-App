@@ -5,6 +5,7 @@ import { SignUpDTO } from '@libs/database';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
 import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
 import { ResetPasswordDTO } from 'libs/common/dto/auth/resetPassword.dto';
+import { UpdatePasswordDTO } from '@libs/common/dto/auth/updatePassword.dto';
 
 @Controller()
 export class AuthController {
@@ -31,5 +32,11 @@ export class AuthController {
   @MessagePattern('resetPassword')
   async ResetPasswordController(@Payload() resetPasswordDTO: ResetPasswordDTO) {
     return await this.authService.resetPassword(resetPasswordDTO);
+  }
+  @MessagePattern('updatePassword')
+  async UpdatePasswordController(
+    @Payload() updatePasswordDTO: UpdatePasswordDTO,
+  ) {
+    return await this.authService.updatePassword(updatePasswordDTO);
   }
 }
