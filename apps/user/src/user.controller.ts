@@ -29,63 +29,58 @@ export class UserController {
     await this.userService.setOffline(data.userId);
   }
 
-//   //  Normal User Operations
-//   @MessagePattern('getMe')
-//   async getMe(@Payload() data: { userId: string }) {
-//     return await this.userService.getMe(data.userId);
-//   }
+  //  Normal User Operations
 
-//   @MessagePattern('updateMe')
-//   async updateMe(@Payload() data: { userId: string; [key: string]: any }) {
-//     const { userId, ...dto } = data;
-//     return await this.userService.updateMe(userId, dto);
-//   }
+  @MessagePattern('getMe')
+  async getMe(@Payload() data: { userId: string }) {
+    return await this.userService.getMe(data.userId);
+  }
 
-//   @MessagePattern('deleteMe')
-//   async deleteMe(@Payload() data: { userId: string }) {
-//     return await this.userService.deleteMe(data.userId);
-//   }
+  @MessagePattern('updateMe')
+  async updateMe(@Payload() data: { userId: string; [key: string]: any }) {
+    const { userId, ...dto } = data;
+    return await this.userService.updateMe(userId, dto);
+  }
 
-//   @MessagePattern('getUserById')
-//   async getUserById(@Payload() data: { viewerId: string; targetId: string }) {
-//     return await this.userService.getUserById(data.viewerId, data.targetId);
-//   }
+  @MessagePattern('deleteMe')
+  async deleteMe(@Payload() data: { userId: string }) {
+    return await this.userService.deleteMe(data.userId);
+  }
 
-//   @MessagePattern('blockUser')
-//   async blockUser(@Payload() data: { blockerId: string; blockedId: string }) {
-//     return await this.userService.blockUser(data.blockerId, data.blockedId);
-//   }
+  @MessagePattern('getUser')
+  async getUserById(@Payload() data: { viewerId: string; targetId: string }) {
+    return await this.userService.getUserById(data.viewerId, data.targetId);
+  }
 
-//   @MessagePattern('unblockUser')
-//   async unblockUser(@Payload() data: { blockerId: string; blockedId: string }) {
-//     return await this.userService.unblockUser(data.blockerId, data.blockedId);
-//   }
+  @MessagePattern('blockUser')
+  async blockUser(@Payload() data: { blockerId: string; blockedId: string }) {
+    return await this.userService.blockUser(data.blockerId, data.blockedId);
+  }
 
-//   @MessagePattern('getBlockedList')
-//   async getBlockedList(@Payload() data: { userId: string }) {
-//     return await this.userService.getBlockedList(data.userId);
-//   }
+  @MessagePattern('unblockUser')
+  async unblockUser(@Payload() data: { blockerId: string; blockedId: string }) {
+    return await this.userService.unblockUser(data.blockerId, data.blockedId);
+  }
 
-//   // Admin Operations
+  @MessagePattern('getBlockedUsers')
+  async getBlockedList(@Payload() data: { userId: string }) {
+    return await this.userService.getBlockedList(data.userId);
+  }
 
-//   @MessagePattern('getAllUsers')
-//   async getAllUsers(@Payload() data: { page?: number; limit?: number; search?: string; role?: UserRole }) {
-//     return await this.userService.getAllUsers(data.page, data.limit, data.search, data.role);
-//   }
+  // Admin Operations
 
-//   @MessagePattern('adminUpdateUser')
-//   async adminUpdateUser(@Payload() data: { targetId: string; name?: string; email?: string }) {
-//     const { targetId, ...dto } = data;
-//     return await this.userService.adminUpdateUser(targetId, dto);
-//   }
+  @MessagePattern('getAllUsers')
+  async getAllUsers(@Payload() data: { page?: number; limit?: number; search?: string; role?: UserRole }) {
+    return await this.userService.getAllUsers();
+  }
 
-//   @MessagePattern('adminDeleteUser')
-//   async adminDeleteUser(@Payload() data: { targetId: string }) {
-//     return await this.userService.adminDeleteUser(data.targetId);
-//   }
+  @MessagePattern('adminDeleteUser')
+  async adminDeleteUser(@Payload() data: { targetId: string }) {
+    return await this.userService.adminDeleteUser(data.targetId);
+  }
 
-//   @MessagePattern('changeUserRole')
-//   async changeUserRole(@Payload() data: { targetId: string; newRole: UserRole }) {
-//     return await this.userService.changeUserRole(data.targetId, data.newRole);
-//   }
+  @MessagePattern('changeUserRole')
+  async changeUserRole(@Payload() data: { targetId: string; newRole: UserRole }) {
+    return await this.userService.changeUserRole(data.targetId, data.newRole);
+  }
 }

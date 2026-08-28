@@ -8,6 +8,8 @@ import { UserProfileEntity, UserEntity, UserRole } from '@libs/database';
 import { BlockedUser, BlockedUserDocument } from '@libs/database';
 import Redis from 'ioredis';
 import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
+import { Not } from 'typeorm';
+
 /*eslint-disable*/
 
 const PROFILE_CACHE_TTL = 300; // 5 minutes
@@ -62,223 +64,197 @@ export class UserService {
     return await this.profileRepo.save(profile);
   }
 
-  //   // ─── GET ME ───────────────────────────────────────────────────────────────
+  async getMe(userId: string) {
+    const cached = await this.redis.get(`user:profile:${userId}`);
+    if (cached) return JSON.parse(cached);
+    const [profile, user] = await Promise.all([
+      this.profileRepo.findOneBy({ user_id: userId }),
+      this.userRepo.findOneBy({ id: userId }),
+    ]);
+    if (!profile) throw new RpcException('Profile not found');
 
-  //   async getMe(userId: string) {
-  //     const cached = await this.redis.get(`user:profile:${userId}`);
-  //     if (cached) return JSON.parse(cached);
+    const result = {
+      userId,
+      name: user?.name,
+      email: user?.email,
+      role: user?.role,
+      bio: profile.bio,
+      profile_picture: profile.profile_picture,
+      phone_number: profile.phone_number,
+      date_of_birth: profile.date_of_birth,
+      gender: profile.gender,
+      country: profile.country,
+      state: profile.state,
+      isOnline: await this.isOnline(userId),
+    };
 
-  //     const [profile, user] = await Promise.all([
-  //       this.profileRepo.findOneBy({ user_id: userId }),
-  //       this.userRepo.findOneBy({ id: userId }),
-  //     ]);
-  //     if (!profile) throw new RpcException('Profile not found');
+    await this.redis.set(
+      `user:profile:${userId}`,
+      JSON.stringify(result),
+      'EX',
+      PROFILE_CACHE_TTL,
+    );
+    return result;
+  }
 
-  //     const result = {
-  //       userId,
-  //       name: user?.name,
-  //       email: user?.email,
-  //       role: user?.role,
-  //       bio: profile.bio,
-  //       profile_picture: profile.profile_picture,
-  //       phone_number: profile.phone_number,
-  //       date_of_birth: profile.date_of_birth,
-  //       gender: profile.gender,
-  //       country: profile.country,
-  //       state: profile.state,
-  //       isOnline: await this.isOnline(userId),
-  //     };
+  async updateMe(
+    userId: string,
+    dto: Partial<{
+      bio: string;
+      profile_picture: string;
+      phone_number: string;
+      date_of_birth: Date;
+      gender: string;
+      country: string;
+      state: string;
+    }>,
+  ) {
+    const profile = await this.profileRepo.findOneBy({ user_id: userId });
+    if (!profile) throw new RpcException('Profile not found');
 
-  //     await this.redis.set(`user:profile:${userId}`, JSON.stringify(result), 'EX', PROFILE_CACHE_TTL);
-  //     return result;
-  //   }
+    Object.assign(profile, dto);
+    const saved = await this.profileRepo.save(profile);
 
-  //   // ─── UPDATE ME ────────────────────────────────────────────────────────────
+    await this.redis.del(`user:profile:${userId}`);
+    // this.events.emitProfileUpdated(userId, { profile_picture: dto.profile_picture });
 
-  //   async updateMe(userId: string, dto: Partial<{
-  //     bio: string;
-  //     profile_picture: string;
-  //     phone_number: string;
-  //     date_of_birth: Date;
-  //     gender: string;
-  //     country: string;
-  //     state: string;
-  //   }>) {
-  //     const profile = await this.profileRepo.findOneBy({ user_id: userId });
-  //     if (!profile) throw new RpcException('Profile not found');
+    return saved;
+  }
 
-  //     Object.assign(profile, dto);
-  //     const saved = await this.profileRepo.save(profile);
+  async deleteMe(userId: string) {
+    const profile = await this.profileRepo.findOneBy({ user_id: userId });
+    if (!profile) throw new RpcException('Profile not found');
 
-  //     await this.redis.del(`user:profile:${userId}`);
-  //     this.events.emitProfileUpdated(userId, { profile_picture: dto.profile_picture });
+    await this.profileRepo.remove(profile);
 
-  //     return saved;
-  //   }
+    // remove from MongoDB — delete their block list and remove them from others' block lists
+    await this.blockedModel.deleteOne({ userId });
+    await this.blockedModel.updateMany(
+      { blocked_ids: userId },
+      { $pull: { blocked_ids: userId } },
+    );
 
-  //   // ─── DELETE ME ────────────────────────────────────────────────────────────
+    await this.redis.del(`user:profile:${userId}`);
+    await this.redis.del(`presence:${userId}`);
 
-  //   async deleteMe(userId: string) {
-  //     const profile = await this.profileRepo.findOneBy({ user_id: userId });
-  //     if (!profile) throw new RpcException('Profile not found');
+    // this.events.emitUserDeleted(userId);
+    return { status: 'success', message: 'Account deleted' };
+  }
 
-  //     await this.profileRepo.remove(profile);
+  async getUserById(viewerId: string, targetId: string) {
+    // check if target has blocked the viewer
+    const targetBlockDoc = await this.blockedModel.findOne({
+      userId: targetId,
+    });
+    if (targetBlockDoc?.blocked_ids?.includes(viewerId)) {
+      throw new RpcException('User not found');
+    }
 
-  //     // remove from MongoDB — delete their block list and remove them from others' block lists
-  //     await this.blockedModel.deleteOne({ userId });
-  //     await this.blockedModel.updateMany(
-  //       { blocked_ids: userId },
-  //       { $pull: { blocked_ids: userId } },
-  //     );
+    const [profile, user] = await Promise.all([
+      this.profileRepo.findOneBy({ user_id: targetId }),
+      this.userRepo.findOneBy({ id: targetId }),
+    ]);
+    if (!profile) throw new RpcException('User not found');
 
-  //     await this.redis.del(`user:profile:${userId}`);
-  //     await this.redis.del(`presence:${userId}`);
-  //     await this.redis.del(`user:blocked:${userId}`);
+    return {
+      userId: targetId,
+      name: user?.name,
+      bio: profile.bio,
+      profile_picture: profile.profile_picture,
+      country: profile.country,
+      isOnline: await this.isOnline(targetId),
+    };
+  }
 
-  //     this.events.emitUserDeleted(userId);
-  //     return { status: 'success', message: 'Account deleted' };
-  //   }
+  async blockUser(blockerId: string, blockedId: string) {
+    if (blockerId === blockedId)
+      throw new RpcException('Cannot block yourself');
 
-  //   // ─── GET USER BY ID (public profile) ─────────────────────────────────────
+    // $addToSet is atomic - Agent Advice
+    await this.blockedModel.findOneAndUpdate(
+      { userId: blockerId },
+      { $addToSet: { blocked_ids: blockedId } },
+      { upsert: true, new: true },
+    );
 
-  //   async getUserById(viewerId: string, targetId: string) {
-  //     // check if target has blocked the viewer
-  //     const targetBlockDoc = await this.blockedModel.findOne({ userId: targetId });
-  //     if (targetBlockDoc?.blocked_ids?.includes(viewerId)) {
-  //       throw new RpcException('User not found');
-  //     }
+    // await this.redis.del(`user:blocked:${blockerId}`);
+    // this.events.emitUserBlocked(blockerId, blockedId);
 
-  //     const [profile, user] = await Promise.all([
-  //       this.profileRepo.findOneBy({ user_id: targetId }),
-  //       this.userRepo.findOneBy({ id: targetId }),
-  //     ]);
-  //     if (!profile) throw new RpcException('User not found');
+    return { status: 'success', message: 'User blocked' };
+  }
 
-  //     return {
-  //       userId: targetId,
-  //       name: user?.name,
-  //       bio: profile.bio,
-  //       profile_picture: profile.profile_picture,
-  //       country: profile.country,
-  //       isOnline: await this.isOnline(targetId),
-  //     };
-  //   }
+  async unblockUser(blockerId: string, blockedId: string) {
+    const doc = await this.blockedModel.findOne({ userId: blockerId });
+    if (!doc || !doc.blocked_ids.includes(blockedId)) {
+      throw new RpcException('User is not blocked');
+    }
 
-  //   // ─── BLOCK USER (MongoDB $addToSet) ───────────────────────────────────────
+    await this.blockedModel.findOneAndUpdate(
+      { userId: blockerId },
+      { $pull: { blocked_ids: blockedId } },
+    );
 
-  //   async blockUser(blockerId: string, blockedId: string) {
-  //     if (blockerId === blockedId) throw new RpcException('Cannot block yourself');
+    // await this.redis.del(`user:blocked:${blockerId}`);
+    // this.events.emitUserUnblocked(blockerId, blockedId);
 
-  //     // $addToSet is atomic — won't add duplicates
-  //     await this.blockedModel.findOneAndUpdate(
-  //       { userId: blockerId },
-  //       { $addToSet: { blocked_ids: blockedId } },
-  //       { upsert: true, new: true },
-  //     );
+    return { status: 'success', message: 'User unblocked' };
+  }
 
-  //     await this.redis.del(`user:blocked:${blockerId}`);
-  //     this.events.emitUserBlocked(blockerId, blockedId);
+  async getBlockedList(userId: string): Promise<string[]> {
+    // const cached = await this.redis.get(`user:blocked:${userId}`);
+    // if (cached) return JSON.parse(cached);
 
-  //     return { status: 'success', message: 'User blocked' };
-  //   }
+    const doc = await this.blockedModel.findOne({ userId });
+    const list = doc?.blocked_ids || [];
 
-  //   // ─── UNBLOCK USER (MongoDB $pull) ─────────────────────────────────────────
+    // await this.redis.set(`user:blocked:${userId}`, JSON.stringify(list), 'EX', BLOCKED_CACHE_TTL);
+    return list;
+  }
 
-  //   async unblockUser(blockerId: string, blockedId: string) {
-  //     const doc = await this.blockedModel.findOne({ userId: blockerId });
-  //     if (!doc || !doc.blocked_ids.includes(blockedId)) {
-  //       throw new RpcException('User is not blocked');
-  //     }
+  // ─── ADMIN: GET ALL USERS ─────────────────────────────────────────────────
 
-  //     await this.blockedModel.findOneAndUpdate(
-  //       { userId: blockerId },
-  //       { $pull: { blocked_ids: blockedId } },
-  //     );
+  async getAllUsers() {
+    const users = await this.userRepo.find({
+      where: {
+        role: Not(UserRole.ADMIN),
+      },
+    });
+    return { users };
+  }
 
-  //     await this.redis.del(`user:blocked:${blockerId}`);
-  //     this.events.emitUserUnblocked(blockerId, blockedId);
+    async adminDeleteUser(targetId: string) {
+      const user = await this.userRepo.findOneBy({ id: targetId });
+      if (!user) throw new RpcException('User not found');
 
-  //     return { status: 'success', message: 'User unblocked' };
-  //   }
+      const profile = await this.profileRepo.findOneBy({ user_id: targetId });
+      if (profile) await this.profileRepo.remove(profile);
+      await this.userRepo.remove(user);
 
-  //   // ─── GET MY BLOCKED LIST ──────────────────────────────────────────────────
+      // clean up MongoDB
+      await this.blockedModel.deleteOne({ userId: targetId });
+      await this.blockedModel.updateMany(
+        { blocked_ids: targetId },
+        { $pull: { blocked_ids: targetId } },
+      );
 
-  //   async getBlockedList(userId: string): Promise<string[]> {
-  //     const cached = await this.redis.get(`user:blocked:${userId}`);
-  //     if (cached) return JSON.parse(cached);
+      await this.redis.del(`user:profile:${targetId}`);
+      await this.redis.del(`presence:${targetId}`);
 
-  //     const doc = await this.blockedModel.findOne({ userId });
-  //     const list = doc?.blocked_ids || [];
+      // this.events.emitUserDeleted(targetId);
+      return { status: 'success', message: 'User deleted by admin' };
+    }
 
-  //     await this.redis.set(`user:blocked:${userId}`, JSON.stringify(list), 'EX', BLOCKED_CACHE_TTL);
-  //     return list;
-  //   }
+    // ─── ADMIN: CHANGE ROLE ───────────────────────────────────────────────────
 
-  //   // ─── ADMIN: GET ALL USERS ─────────────────────────────────────────────────
+    async changeUserRole(targetId: string, newRole: UserRole) {
+      const user = await this.userRepo.findOneBy({ id: targetId });
+      if (!user) throw new RpcException('User not found');
 
-  //   async getAllUsers(page: number = 1, limit: number = 20, search?: string, role?: UserRole) {
-  //     const query = this.userRepo.createQueryBuilder('user');
+      user.role = newRole;
+      await this.userRepo.save(user);
+      await this.redis.del(`user:profile:${targetId}`);
 
-  //     if (search) {
-  //       query.where('user.name ILIKE :search OR user.email ILIKE :search', { search: `%${search}%` });
-  //     }
-  //     if (role) {
-  //       query.andWhere('user.role = :role', { role });
-  //     }
-
-  //     query.skip((page - 1) * limit).take(limit);
-  //     const [users, total] = await query.getManyAndCount();
-
-  //     return { users, total, page, limit };
-  //   }
-
-  //   // ─── ADMIN: UPDATE USER ───────────────────────────────────────────────────
-
-  //   async adminUpdateUser(targetId: string, dto: { name?: string; email?: string }) {
-  //     const user = await this.userRepo.findOneBy({ id: targetId });
-  //     if (!user) throw new RpcException('User not found');
-
-  //     Object.assign(user, dto);
-  //     const saved = await this.userRepo.save(user);
-  //     await this.redis.del(`user:profile:${targetId}`);
-  //     return saved;
-  //   }
-
-  //   // ─── ADMIN: DELETE USER ───────────────────────────────────────────────────
-
-  //   async adminDeleteUser(targetId: string) {
-  //     const user = await this.userRepo.findOneBy({ id: targetId });
-  //     if (!user) throw new RpcException('User not found');
-
-  //     const profile = await this.profileRepo.findOneBy({ user_id: targetId });
-  //     if (profile) await this.profileRepo.remove(profile);
-  //     await this.userRepo.remove(user);
-
-  //     // clean up MongoDB
-  //     await this.blockedModel.deleteOne({ userId: targetId });
-  //     await this.blockedModel.updateMany(
-  //       { blocked_ids: targetId },
-  //       { $pull: { blocked_ids: targetId } },
-  //     );
-
-  //     await this.redis.del(`user:profile:${targetId}`);
-  //     await this.redis.del(`presence:${targetId}`);
-
-  //     this.events.emitUserDeleted(targetId);
-  //     return { status: 'success', message: 'User deleted by admin' };
-  //   }
-
-  //   // ─── ADMIN: CHANGE ROLE ───────────────────────────────────────────────────
-
-  //   async changeUserRole(targetId: string, newRole: UserRole) {
-  //     const user = await this.userRepo.findOneBy({ id: targetId });
-  //     if (!user) throw new RpcException('User not found');
-
-  //     user.role = newRole;
-  //     await this.userRepo.save(user);
-  //     await this.redis.del(`user:profile:${targetId}`);
-
-  //     this.events.emitRoleChanged(targetId, newRole);
-  //     return { status: 'success', message: `Role updated to ${newRole}` };
-  //   }
+      // this.events.emitRoleChanged(targetId, newRole);
+      return { status: 'success', message: `Role updated to ${newRole}` };
+    }
 }
