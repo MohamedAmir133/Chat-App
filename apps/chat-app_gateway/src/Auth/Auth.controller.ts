@@ -4,6 +4,7 @@ import {
   Body,
   Controller,
   Inject,
+  Logger,
   Param,
   Post,
   Req,
@@ -19,6 +20,7 @@ import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
 import type { Response } from 'express';
 import { AuthGuard } from 'libs/Guards';
 import type { Request } from 'express';
+import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
 
 const COOKIE_OPTIONS = {
   maxAge: 1000 * 60 * 60 * 24 * 7,
@@ -36,12 +38,41 @@ export class AuthHttpController {
 
   @Post('signup')
   async signUp(
-    @Body() signUpDTO: SignUpDTO,
+    @Body()
+    body: {
+      name: string;
+      email: string;
+      password: string;
+      confirmPassword: string;
+      bio: string;
+      profile_picture: string;
+      phone_number: string;
+      date_of_birth: string;
+      gender: string;
+      country: string;
+      state: string;
+    },
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
+      const signUpDTO: SignUpDTO = {
+        name: body.name,
+        email: body.email,
+        password: body.password,
+        confirmPassword: body.confirmPassword,
+      };
+      const userProfileDto: userProfileDto = {
+        bio: body.bio,
+        profile_picture: body.profile_picture,
+        phone_number: body.phone_number,
+        date_of_birth: new Date(body.date_of_birth),
+        gender: body.gender,
+        country: body.country,
+        state: body.state,
+        user_id: '',
+      };
       const result = await firstValueFrom(
-        this.authClient.send('signUp', signUpDTO),
+        this.authClient.send('signUp', { signUpDTO, userProfileDto }),
       );
       res.cookie('jwt', result.token, COOKIE_OPTIONS);
       return result;
@@ -65,9 +96,14 @@ export class AuthHttpController {
       throw new BadRequestException(err?.message || err);
     }
   }
-
+  @UseGuards(AuthGuard)
   @Post('signout')
-  signOut(@Res({ passthrough: true }) res: Response) {
+  async signOut(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
+    Logger.log('we are in Auth Controller');
+    const userId = (req.user as any).id;
+    const result = await firstValueFrom(
+        this.authClient.send('signout', userId),
+    );
     res.clearCookie('jwt');
     return { status: 'success', message: 'Signed out successfully' };
   }
@@ -111,7 +147,12 @@ export class AuthHttpController {
   @UseGuards(AuthGuard)
   @Post('update-password')
   async updatePassword(
-    @Body() { oldPassword, newPassword, confirmNewPassword }: { oldPassword: string; newPassword: string; confirmNewPassword: string },
+    @Body()
+    {
+      oldPassword,
+      newPassword,
+      confirmNewPassword,
+    }: { oldPassword: string; newPassword: string; confirmNewPassword: string },
     @Req() req: Request,
   ) {
     try {

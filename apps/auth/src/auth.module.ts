@@ -6,9 +6,25 @@ import { AuthService } from './auth.service';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { EmailModule } from '@libs/email';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
   imports: [
+    ClientsModule.register([
+      {
+        name: 'User_Client',
+        transport: Transport.RMQ,
+        options: {
+          urls: [
+            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+          ],
+          queue: process.env.USER_QUEUE || 'user_queue',
+          queueOptions: {
+            durable: false,
+          },
+        },
+      },
+    ]),
     DatabaseModule,
     TypeOrmModule.forFeature([UserEntity]),
     PassportModule,

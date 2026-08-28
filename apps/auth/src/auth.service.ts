@@ -1,15 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity, SignUpDTO } from '@libs/database';
 import * as bycrpt from 'bcryptjs';
-import { RpcException } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
 import { ResetPasswordDTO } from 'libs/common/dto/auth/resetPassword.dto';
 import { EmailService } from '@libs/email';
 import { UpdatePasswordDTO } from 'libs/common/dto/auth/updatePassword.dto';
+import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
 /*eslint-disable*/
 @Injectable()
 export class AuthService {
@@ -18,13 +19,21 @@ export class AuthService {
     private readonly userRepository: Repository<UserEntity>,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
+    @Inject('User_Client') private readonly userClient: ClientProxy,
   ) {}
 
   createToken(user: UserEntity): string {
     return this.jwtService.sign({ id: user.id, role: user.role });
   }
-
-  async signUp(signUpDTO: SignUpDTO) {
+  signout(userId: string) {
+    Logger.log('we are in Auth service');
+    this.userClient.emit('user.logged_out', { userId: userId });
+    return {
+      status: 'success',
+      message: 'User signed out successfully',
+    };
+  }
+  async signUp(signUpDTO: SignUpDTO, userProfileDto: userProfileDto) {
     if (signUpDTO.password !== signUpDTO.confirmPassword) {
       throw new RpcException('password and confirmPassword does not match');
     }
@@ -42,6 +51,12 @@ export class AuthService {
     });
     const savedUser = await this.userRepository.save(user);
     const token = this.createToken(savedUser);
+
+    // Emit event to create user profile in User Service
+    this.userClient.emit('user.registered', {
+      userId: savedUser.id,
+      ...userProfileDto,
+    });
     return {
       status: 'success',
       message: 'User created successfully',
@@ -69,6 +84,7 @@ export class AuthService {
       throw new RpcException('Invalid password');
     }
     const token = this.createToken(user);
+    this.userClient.emit('user.logged_in', { userId: user.id });
     return {
       status: 'success',
       message: 'User signed in successfully',
@@ -133,12 +149,18 @@ export class AuthService {
     };
   }
   async updatePassword(updatePasswordDTO: UpdatePasswordDTO) {
-    const user = await this.userRepository.findOneBy({ id: updatePasswordDTO.userId });
+    const user = await this.userRepository.findOneBy({
+      id: updatePasswordDTO.userId,
+    });
     if (!user) {
       throw new RpcException('User not found');
     }
-    if (updatePasswordDTO.newPassword !== updatePasswordDTO.confirmNewPassword) {
-      throw new RpcException('newPassword and confirmNewPassword does not match');
+    if (
+      updatePasswordDTO.newPassword !== updatePasswordDTO.confirmNewPassword
+    ) {
+      throw new RpcException(
+        'newPassword and confirmNewPassword does not match',
+      );
     }
     const isPasswordValid = await bycrpt.compare(
       updatePasswordDTO.oldPassword,

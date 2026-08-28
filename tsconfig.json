@@ -22,16 +22,36 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@libs/database": ["libs/database/src"],
-      "@libs/database/*": ["libs/database/src/*"],
-      "@app/database": ["libs/database/src"],
-      "@app/database/*": ["libs/database/src/*"],
-      "@libs/email": ["libs/Emails"],
-      "@libs/email/*": ["libs/Emails/*"],
-      "@libs/common": ["libs/common"],
-      "@libs/common/*": ["libs/common/*"],
-      "@libs/guards": ["libs/Guards"],
-      "@libs/guards/*": ["libs/Guards/*"]
+      "@app/database": [
+        "libs/database/src"
+      ],
+      "@app/database/*": [
+        "libs/database/src/*"
+      ],
+      "@libs/common": [
+        "libs/common"
+      ],
+      "@libs/common/*": [
+        "libs/common/*"
+      ],
+      "@libs/database": [
+        "libs/database/src"
+      ],
+      "@libs/database/*": [
+        "libs/database/src/*"
+      ],
+      "@libs/email": [
+        "libs/Emails"
+      ],
+      "@libs/email/*": [
+        "libs/Emails/*"
+      ],
+      "@libs/guards": [
+        "libs/Guards"
+      ],
+      "@libs/guards/*": [
+        "libs/Guards/*"
+      ]
     }
   }
 }

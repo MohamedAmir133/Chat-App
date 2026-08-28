@@ -1,4 +1,30 @@
 services:
+  mongodb:
+    image: mongo:latest
+    container_name: chat_app-mongodb
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongo', '--eval', 'db.runCommand("ping").ok']
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
+  redis:
+    image: redis:alpine
+    container_name: chat_app-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: chat_app-rabbitmq
@@ -29,3 +55,5 @@ services:
 volumes:
   rabbitmq_data:
   postgres_data:
+  mongodb_data:
+  redis_data:

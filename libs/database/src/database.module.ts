@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
 import { UserEntity } from './entities/user.entity';
+import { UserProfileEntity } from './entities/user-profile.entity';
 
 dotenv.config();
 
@@ -14,10 +15,10 @@ dotenv.config();
       username: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'chatapp',
-      entities: [UserEntity],
-      synchronize: true, // set to false in production with migrations
+      entities: [UserEntity, UserProfileEntity],
+      synchronize: true,
     }),
-    TypeOrmModule.forFeature([UserEntity]),
+    TypeOrmModule.forFeature([UserEntity, UserProfileEntity]),
   ],
   exports: [TypeOrmModule],
 })
