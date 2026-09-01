@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthHttpController } from './Auth/Auth.controller';
 import { UserHttpController } from './user/User.controller';
+import { ChatHttpController } from './Chat/chat.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
 import * as dotenv from 'dotenv';
@@ -30,6 +31,19 @@ dotenv.config();
         },
       },
       {
+        name: 'CHAT_Client',
+        transport: Transport.RMQ,
+        options: {
+          urls: [
+            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+          ],
+          queue: process.env.CHAT_QUEUE || 'chat_queue',
+          queueOptions: {
+            durable: false,
+          },
+        },
+      },
+      {
         name: 'USER_Client',
         transport: Transport.RMQ,
         options: {
@@ -44,7 +58,12 @@ dotenv.config();
       },
     ]),
   ],
-  controllers: [AppController, AuthHttpController, UserHttpController],
+  controllers: [
+    AppController,
+    AuthHttpController,
+    UserHttpController,
+    ChatHttpController,
+  ],
   providers: [AppService],
 })
 export class AppModule {}

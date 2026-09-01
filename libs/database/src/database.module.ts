@@ -3,8 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
 import { UserEntity } from './entities/user.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
+import { RoomEntity } from './entities/room.entity';
+import { RoomMember } from './entities/room-member.entity';
 
 dotenv.config();
+
+const entities = [UserEntity, UserProfileEntity, RoomEntity, RoomMember];
 
 @Module({
   imports: [
@@ -15,10 +19,10 @@ dotenv.config();
       username: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'chatapp',
-      entities: [UserEntity, UserProfileEntity],
+      entities: entities,
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([UserEntity, UserProfileEntity]),
+    TypeOrmModule.forFeature(entities),
   ],
   exports: [TypeOrmModule],
 })

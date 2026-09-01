@@ -166,6 +166,33 @@ export class UserService {
     };
   }
 
+  async searchUsers(query: string, viewerId: string) {
+    if (!query || query.trim() === '') return [];
+    
+    // Search users by name or email
+    const users = await this.userRepo
+      .createQueryBuilder('user')
+      .where('user.name ILIKE :query OR user.email ILIKE :query', { query: `%${query}%` })
+      .andWhere('user.id != :viewerId', { viewerId })
+      .take(10)
+      .getMany();
+
+    // Fetch profiles
+    const results = await Promise.all(
+      users.map(async (user) => {
+        const profile = await this.profileRepo.findOneBy({ user_id: user.id });
+        return {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          profile_picture: profile?.profile_picture,
+          isOnline: await this.isOnline(user.id),
+        };
+      })
+    );
+    return results;
+  }
+
   async blockUser(blockerId: string, blockedId: string) {
     if (blockerId === blockedId)
       throw new RpcException('Cannot block yourself');

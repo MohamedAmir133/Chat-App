@@ -52,6 +52,11 @@ export class UserController {
     return await this.userService.getUserById(data.viewerId, data.targetId);
   }
 
+  @MessagePattern('searchUsers')
+  async searchUsers(@Payload() data: { query: string; viewerId: string }) {
+    return await this.userService.searchUsers(data.query, data.viewerId);
+  }
+
   @MessagePattern('blockUser')
   async blockUser(@Payload() data: { blockerId: string; blockedId: string }) {
     return await this.userService.blockUser(data.blockerId, data.blockedId);

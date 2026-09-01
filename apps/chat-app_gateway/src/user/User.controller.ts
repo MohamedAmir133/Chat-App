@@ -55,6 +55,18 @@ export class UserHttpController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('search')
+  async searchUsers(@Req() req: Request) {
+    const query = req.query.q as string;
+    return await firstValueFrom(
+      this.userClient.send('searchUsers', {
+        query,
+        viewerId: (req.user as any).id,
+      }),
+    );
+  }
+
+  @UseGuards(AuthGuard)
   @Get('blocked-users')
   async getBlockedUsers(@Req() req: Request) {
     return await firstValueFrom(
