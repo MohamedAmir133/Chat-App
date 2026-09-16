@@ -9,20 +9,30 @@ import {
   Post,
   Put,
   Req,
+  Res,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
-import type { Request } from 'express';
+import { firstValueFrom, timeout } from 'rxjs';
+import type { Request, Response } from 'express';
 import { AuthGuard, RolesGuard, Roles } from 'libs/Guards';
 import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
 import { UserRole } from '@libs/database';
+import { PresenceService } from '@libs/sockets/presence.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 
 @Controller('user')
 export class UserHttpController {
   constructor(
     @Inject('USER_Client')
     private readonly userClient: ClientProxy,
+    private readonly presenceService: PresenceService,
   ) {}
 
   // ─── Normal User Routes ──────────────────────────────────────────────────
@@ -31,7 +41,9 @@ export class UserHttpController {
   @Get('me')
   async getMe(@Req() req: Request) {
     return await firstValueFrom(
-      this.userClient.send('getMe', { userId: (req.user as any).id }),
+      this.userClient.send('getMe', { userId: (req.user as any).id }).pipe(
+        timeout(10000),
+      ),
     );
   }
 
@@ -48,10 +60,16 @@ export class UserHttpController {
 
   @UseGuards(AuthGuard)
   @Delete('me')
-  async deleteMe(@Req() req: Request) {
-    return await firstValueFrom(
-      this.userClient.send('deleteMe', { userId: (req.user as any).id }),
+  async deleteMe(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userId = (req.user as any).id;
+    const result = await firstValueFrom(
+      this.userClient.send('deleteMe', { userId }),
     );
+    res.clearCookie('jwt');
+    return result;
   }
 
   @UseGuards(AuthGuard)
@@ -64,6 +82,32 @@ export class UserHttpController {
         viewerId: (req.user as any).id,
       }),
     );
+  }
+
+  // ─── Presence — reads directly from Redis, no RabbitMQ hop ─────────────
+
+  /** GET /user/presence/:userId — returns { userId, isOnline } */
+  @UseGuards(AuthGuard)
+  @Get('presence/:userId')
+  async getUserPresence(@Param('userId') userId: string) {
+    const isOnline = await this.presenceService.isUserOnline(userId);
+    return { userId, isOnline };
+  }
+
+  /** POST /user/presence/batch — body: { userIds: string[] }
+   *  Returns [{ userId, isOnline }, ...] for all requested ids at once.
+   */
+  @UseGuards(AuthGuard)
+  @Post('presence/batch')
+  async getBatchPresence(@Body() body: { userIds: string[] }) {
+    const ids: string[] = Array.isArray(body?.userIds) ? body.userIds : [];
+    const results = await Promise.all(
+      ids.map(async (userId) => ({
+        userId,
+        isOnline: await this.presenceService.isUserOnline(userId),
+      })),
+    );
+    return results;
   }
 
   @UseGuards(AuthGuard)

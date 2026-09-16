@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Phone, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { apiRequest } from '@/lib/api';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,9 +12,10 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>('signin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -22,20 +24,26 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [bio, setBio] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMsg(null);
     setLoading(true);
 
     try {
       if (mode === 'signin') {
         await signIn(email, password);
-      } else {
+        onClose();
+      } else if (mode === 'signup') {
         if (password !== confirmPassword) {
-          throw new Error('Passwords do not match');
+          throw new Error('Passwords do not match. Please re-enter them.');
+        }
+        if (password.length < 6) {
+          throw new Error('Password must be at least 6 characters long.');
         }
         await signUp({
           signUpDTO: {
@@ -50,10 +58,47 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             profile_picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || email)}`,
           },
         });
+        onClose();
+      } else if (mode === 'forgot') {
+        const res = await apiRequest('/auth/forget-password', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+        setOtp('');
+        setSuccessMsg(res.message || '✅ OTP sent! Check your inbox (or Spam folder) and enter the code below.');
+        setMode('reset');
+      } else if (mode === 'reset') {
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match. Please re-enter them.');
+        }
+        if (!otp.trim()) {
+          throw new Error('Please enter the OTP code from your email.');
+        }
+        await apiRequest(`/auth/reset-password/${otp.trim()}`, {
+          method: 'POST',
+          body: JSON.stringify({ password, confirmPassword }),
+        });
+        setSuccessMsg('✅ Password reset successfully! Please sign in with your new password.');
+        setMode('signin');
       }
-      onClose();
     } catch (err: any) {
-      setError(err?.message || 'Authentication failed');
+      const raw: string = err?.message || '';
+      // Map backend messages to friendly copy
+      let friendly = raw;
+      if (/invalid credential|invalid email|wrong password|unauthorized/i.test(raw)) {
+        friendly = 'Wrong email or password. Please double-check and try again.';
+      } else if (/user not found|no account|does not exist/i.test(raw)) {
+        friendly = 'No account found with this email. Did you mean to sign up?';
+      } else if (/email.*already.*exist|already registered|duplicate/i.test(raw)) {
+        friendly = 'An account with this email already exists. Try signing in instead.';
+      } else if (/network|fetch|econnrefused|failed to fetch/i.test(raw)) {
+        friendly = 'Cannot reach the server. Check your internet connection and try again.';
+      } else if (/otp.*invalid|invalid.*otp|expired/i.test(raw)) {
+        friendly = 'The OTP code is invalid or has expired. Request a new one.';
+      } else if (!raw) {
+        friendly = 'Something went wrong. Please try again.';
+      }
+      setError(friendly);
     } finally {
       setLoading(false);
     }
@@ -72,39 +117,72 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </button>
         </div>
 
-        {/* Tab switch */}
-        <div style={styles.tabSwitch}>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signin');
-              setError(null);
-            }}
-            style={{
-              ...styles.tabSwitchBtn,
-              backgroundColor: mode === 'signin' ? '#FFFFFF' : 'transparent',
-              color: mode === 'signin' ? '#1C2024' : '#737D8C',
-              boxShadow: mode === 'signin' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signup');
-              setError(null);
-            }}
-            style={{
-              ...styles.tabSwitchBtn,
-              backgroundColor: mode === 'signup' ? '#FFFFFF' : 'transparent',
-              color: mode === 'signup' ? '#1C2024' : '#737D8C',
-              boxShadow: mode === 'signup' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            Create Account
-          </button>
-        </div>
+        {/* Tab switch (Sign In / Create Account) */}
+        {(mode === 'signin' || mode === 'signup') && (
+          <div style={styles.tabSwitch}>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signin');
+                setError(null);
+                setSuccessMsg(null);
+              }}
+              style={{
+                ...styles.tabSwitchBtn,
+                backgroundColor: mode === 'signin' ? '#FFFFFF' : 'transparent',
+                color: mode === 'signin' ? '#1C2024' : '#737D8C',
+                boxShadow: mode === 'signin' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signup');
+                setError(null);
+                setSuccessMsg(null);
+              }}
+              style={{
+                ...styles.tabSwitchBtn,
+                backgroundColor: mode === 'signup' ? '#FFFFFF' : 'transparent',
+                color: mode === 'signup' ? '#1C2024' : '#737D8C',
+                boxShadow: mode === 'signup' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+
+        {mode === 'forgot' && (
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: '#1C2024' }}>
+              Forgot Password
+            </h3>
+            <p style={{ fontSize: '13px', color: '#737D8C', margin: 0 }}>
+              Enter your account email to receive an OTP verification code.
+            </p>
+          </div>
+        )}
+
+        {mode === 'reset' && (
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: '#1C2024' }}>
+              Reset Password
+            </h3>
+            <p style={{ fontSize: '13px', color: '#737D8C', margin: 0 }}>
+              Enter the OTP sent to your email and your new password.
+            </p>
+          </div>
+        )}
+
+        {/* Success message */}
+        {successMsg && (
+          <div style={styles.successNotice}>
+            <span>{successMsg}</span>
+          </div>
+        )}
 
         {/* Error notice */}
         {error && (
@@ -130,44 +208,64 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
-          <div style={styles.inputGroup}>
-            <Mail size={18} color="#8A94A6" style={styles.inputIcon} />
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={styles.input}
-            />
-          </div>
+          {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
+            <div style={styles.inputGroup}>
+              <Mail size={18} color="#8A94A6" style={styles.inputIcon} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={styles.input}
+              />
+            </div>
+          )}
 
-          <div style={styles.inputGroup}>
-            <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={styles.input}
-            />
-          </div>
+          {mode === 'reset' && (
+            <div style={styles.inputGroup}>
+              <FileText size={18} color="#8A94A6" style={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="Enter 6-digit OTP Code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                style={styles.input}
+              />
+            </div>
+          )}
+
+          {(mode === 'signin' || mode === 'signup' || mode === 'reset') && (
+            <div style={styles.inputGroup}>
+              <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder={mode === 'reset' ? 'New Password' : 'Password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={styles.input}
+              />
+            </div>
+          )}
+
+          {(mode === 'signup' || mode === 'reset') && (
+            <div style={styles.inputGroup}>
+              <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder={mode === 'reset' ? 'Confirm New Password' : 'Confirm Password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                style={styles.input}
+              />
+            </div>
+          )}
 
           {mode === 'signup' && (
             <>
-              <div style={styles.inputGroup}>
-                <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
-                <input
-                  type="password"
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  style={styles.input}
-                />
-              </div>
-
               <div style={styles.inputGroup}>
                 <Phone size={18} color="#8A94A6" style={styles.inputIcon} />
                 <input
@@ -192,13 +290,65 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </>
           )}
 
+          {mode === 'signin' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('forgot');
+                  setError(null);
+                  setSuccessMsg(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#FF5A36',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
+
+          {(mode === 'forgot' || mode === 'reset') && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '-4px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin');
+                  setError(null);
+                  setSuccessMsg(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#737D8C',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          )}
+
           <button type="submit" disabled={loading} style={styles.submitBtn}>
             {loading ? (
               <Loader2 size={18} color="#FFFFFF" className="animate-spin" />
             ) : mode === 'signin' ? (
               'Sign In to Sunday'
-            ) : (
+            ) : mode === 'signup' ? (
               'Create Free Account'
+            ) : mode === 'forgot' ? (
+              'Send OTP Reset Code'
+            ) : (
+              'Reset Password'
             )}
           </button>
         </form>
@@ -252,6 +402,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13.5px',
     fontWeight: 600,
     transition: 'all 0.2s',
+  },
+  successNotice: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 14px',
+    backgroundColor: '#F0FDF4',
+    color: '#16A34A',
+    borderRadius: '12px',
+    fontSize: '13px',
+    marginBottom: '16px',
+    border: '1px solid #BBF7D0',
   },
   errorNotice: {
     display: 'flex',

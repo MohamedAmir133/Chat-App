@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { SignUpDTO } from '@libs/database';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { BadRequestException } from '@nestjs/common';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
 import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
@@ -21,6 +21,8 @@ import type { Response } from 'express';
 import { AuthGuard } from 'libs/Guards';
 import type { Request } from 'express';
 import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
+import { PresenceService } from '@libs/sockets/presence.service';
+import { ChatGateway } from '@libs/sockets/socket.config';
 
 const COOKIE_OPTIONS = {
   maxAge: 1000 * 60 * 60 * 24 * 7,
@@ -34,6 +36,8 @@ export class AuthHttpController {
   constructor(
     @Inject('AUTH_Client')
     private readonly authClient: ClientProxy,
+    private readonly presenceService: PresenceService,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   @Post('signup')
@@ -72,7 +76,7 @@ export class AuthHttpController {
         user_id: '',
       };
       const result = await firstValueFrom(
-        this.authClient.send('signUp', { signUpDTO, userProfileDto }),
+        this.authClient.send('signUp', { signUpDTO, userProfileDto }).pipe(timeout(10000)),
       );
       res.cookie('jwt', result.token, COOKIE_OPTIONS);
       return result;
@@ -88,7 +92,7 @@ export class AuthHttpController {
   ) {
     try {
       const result = await firstValueFrom(
-        this.authClient.send('signIn', signInDTO),
+        this.authClient.send('signIn', signInDTO).pipe(timeout(10000)),
       );
       res.cookie('jwt', result.token, COOKIE_OPTIONS);
       return result;
@@ -99,11 +103,35 @@ export class AuthHttpController {
   @UseGuards(AuthGuard)
   @Post('signout')
   async signOut(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
-    Logger.log('we are in Auth Controller');
     const userId = (req.user as any).id;
-    const result = await firstValueFrom(
-        this.authClient.send('signout', userId),
-    );
+    try {
+      await firstValueFrom(
+        this.authClient.send('signout', userId).pipe(timeout(5000)),
+      );
+    } catch (e) {
+      Logger.warn(`authClient signout error: ${(e as Error).message}`);
+    }
+
+    // 1. Immediately clear presence from Redis
+    if (userId) {
+      await this.presenceService.clearUserPresence(String(userId));
+    }
+
+    // 2. Disconnect any active sockets for this user and broadcast offline status
+    try {
+      if (this.chatGateway?.server && userId) {
+        this.chatGateway.server.to(`user:${userId}`).disconnectSockets(true);
+        this.chatGateway.server.emit('user_status_changed', {
+          userId: String(userId),
+          status: 'offline',
+          lastSeen: new Date(),
+        });
+        Logger.log(`[signOut] Broadcasted user_status_changed offline for userId=${userId}`);
+      }
+    } catch (e) {
+      Logger.error(`Error during socket teardown on signOut: ${(e as Error).message}`);
+    }
+
     res.clearCookie('jwt');
     return { status: 'success', message: 'Signed out successfully' };
   }
@@ -112,7 +140,7 @@ export class AuthHttpController {
   async forgetPassword(@Body() forgetPasswordDTO: ForgetPasswordDTO) {
     try {
       const result = await firstValueFrom(
-        this.authClient.send('forgetPassword', forgetPasswordDTO),
+        this.authClient.send('forgetPassword', forgetPasswordDTO).pipe(timeout(10000)),
       );
       return result;
     } catch (err) {

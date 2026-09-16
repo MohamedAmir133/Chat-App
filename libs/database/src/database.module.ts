@@ -20,7 +20,10 @@ const entities = [UserEntity, UserProfileEntity, RoomEntity, RoomMember];
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'chatapp',
       entities: entities,
-      synchronize: true,
+      // In dev: true auto-creates tables. In production: migrations should manage schema to avoid data loss
+      synchronize: process.env.NODE_ENV !== 'production',
+      // PRODUCTION: Enable SSL for cloud databases (AWS RDS, Supabase, Neon)
+      // ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     }),
     TypeOrmModule.forFeature(entities),
   ],

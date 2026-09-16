@@ -29,6 +29,9 @@ export class RoomEntity {
   @Column({ nullable: true })
   description?: string;
 
+  @Column({ nullable: true })
+  group_picture?: string; // Group avatar/photo
+
   @CreateDateColumn()
   createdAt!: Date;
 
@@ -37,4 +40,11 @@ export class RoomEntity {
 
   @DeleteDateColumn()
   deletedAt!: Date;
+
+  // @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
+  // @JoinColumn({ name: 'owner_id' })
+  // owner!: UserEntity;
+
+  // @OneToMany(() => RoomMember, member => member.room)
+  // members!: RoomMember[];
 }

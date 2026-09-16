@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Bell, MessageSquare, LogIn, User as UserIcon } from 'lucide-react';
+import { Search, LogIn } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 
@@ -12,36 +12,7 @@ interface TopNavProps {
 
 export function TopNav({ onOpenAuth, onOpenProfile }: TopNavProps) {
   const { user } = useAuth();
-  const { searchQuery, setSearchQuery, startDirectChat } = useChat();
-  const [searchResults, setSearchResults] = React.useState<any[]>([]);
-  const [isSearching, setIsSearching] = React.useState(false);
-  const [showDropdown, setShowDropdown] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!searchQuery.trim() || !user) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const results = await fetch(`/api/user/search?q=${encodeURIComponent(searchQuery)}`);
-        if (results.ok) {
-          const data = await results.json();
-          setSearchResults(data);
-          setShowDropdown(true);
-        }
-      } catch (err) {
-        console.error('Search failed', err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, user]);
+  const { searchQuery, setSearchQuery } = useChat();
 
   return (
     <header style={styles.header}>
@@ -62,60 +33,13 @@ export function TopNav({ onOpenAuth, onOpenProfile }: TopNavProps) {
             placeholder="Search users to chat..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => {
-              if (searchResults.length > 0) setShowDropdown(true);
-            }}
-            onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
             style={styles.searchInput}
           />
-          {isSearching && <div className="animate-spin" style={styles.spinner} />}
         </div>
-
-        {/* Search Results Dropdown */}
-        {showDropdown && searchResults.length > 0 && (
-          <div style={styles.dropdown}>
-            {searchResults.map((resUser) => (
-              <div
-                key={resUser.userId}
-                style={styles.dropdownItem}
-                onClick={() => {
-                  setSearchQuery('');
-                  setShowDropdown(false);
-                  startDirectChat(resUser.userId, {
-                    id: resUser.userId,
-                    name: resUser.name,
-                    email: resUser.email,
-                    profile_picture: resUser.profile_picture,
-                    isOnline: resUser.isOnline,
-                  });
-                }}
-              >
-                <img
-                  src={resUser.profile_picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(resUser.name)}&background=random`}
-                  alt={resUser.name}
-                  style={styles.dropdownAvatar}
-                />
-                <div style={styles.dropdownInfo}>
-                  <div style={styles.dropdownName}>{resUser.name}</div>
-                  <div style={styles.dropdownEmail}>{resUser.email}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Action Icons & Profile */}
+      {/* Profile / Sign In */}
       <div style={styles.actions}>
-        <button style={styles.iconBtn} title="Notifications">
-          <Bell size={19} color="#4E5969" />
-          <span style={styles.notificationDot} />
-        </button>
-
-        <button style={styles.iconBtn} title="All Chats">
-          <MessageSquare size={19} color="#4E5969" />
-        </button>
-
         {user ? (
           <div
             onClick={onOpenProfile}
@@ -125,7 +49,7 @@ export function TopNav({ onOpenAuth, onOpenProfile }: TopNavProps) {
             <img
               src={
                 user.profile_picture ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=FF5A36&color=fff&size=80`
               }
               alt={user.name}
               style={styles.avatarImg}

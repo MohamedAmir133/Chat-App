@@ -64,3 +64,9 @@ pids
 
 # Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Temporary notes and SQL scripts
+*.md
+!README.md
+*.sql
+

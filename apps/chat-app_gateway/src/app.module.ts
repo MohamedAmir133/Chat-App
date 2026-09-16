@@ -4,14 +4,17 @@ import { AppService } from './app.service';
 import { AuthHttpController } from './Auth/Auth.controller';
 import { UserHttpController } from './user/User.controller';
 import { ChatHttpController } from './Chat/chat.controller';
+import { AdminController } from './admin/admin.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
+import { SocketModule } from '@libs/sockets/socket.module';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
 @Module({
   imports: [
+    SocketModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
@@ -63,6 +66,7 @@ dotenv.config();
     AuthHttpController,
     UserHttpController,
     ChatHttpController,
+    AdminController,
   ],
   providers: [AppService],
 })

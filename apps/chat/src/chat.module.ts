@@ -6,6 +6,7 @@ import {
   RoomEntity,
   RoomMember,
   UserEntity,
+  UserProfileEntity,
   Message,
   MessageSchema,
 } from '@libs/database';
@@ -21,7 +22,7 @@ dotenv.config();
   imports: [
     // PostgreSQL for Rooms & Members
     DatabaseModule,
-    TypeOrmModule.forFeature([RoomEntity, RoomMember, UserEntity]),
+    TypeOrmModule.forFeature([RoomEntity, RoomMember, UserEntity, UserProfileEntity]),
 
     // MongoDB for Messages
     MongooseModule.forRoot(

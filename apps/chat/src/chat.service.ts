@@ -8,6 +8,7 @@ import {
   RoomEntity,
   RoomMember,
   UserEntity,
+  UserProfileEntity,
   RoomType,
   UserRoomRole,
   Message,
@@ -29,6 +30,8 @@ export class ChatService {
     private readonly memberRepo: Repository<RoomMember>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(UserProfileEntity)
+    private readonly profileRepo: Repository<UserProfileEntity>,
     @InjectModel(Message.name)
     private readonly messageModel: Model<MessageDocument>,
     @Inject('REDIS_CLIENT')
@@ -37,8 +40,8 @@ export class ChatService {
 
   // ─── ROOM MANAGEMENT ──────────────────────────────────────────────────────
 
-  async createRoom(dto: roomDto) {
-    const { owner_id, name, type, description } = dto;
+  async createRoom(dto: roomDto & { memberIds?: string[] }) {
+    const { owner_id, name, type, description, memberIds } = dto;
 
     const roomType = (type as RoomType) || RoomType.ONE_ONE;
 
@@ -58,6 +61,22 @@ export class ChatService {
       role: UserRoomRole.OWNER,
     });
     await this.memberRepo.save(ownerMember);
+
+    // Add extra members if provided (for group creation)
+    if (memberIds && memberIds.length > 0) {
+      const extraMembers = memberIds
+        .filter((id) => id && id !== owner_id) // skip nulls and owner (already added)
+        .map((memberId) =>
+          this.memberRepo.create({
+            roomId: savedRoom.id,
+            userId: memberId,
+            role: UserRoomRole.MEMBER,
+          }),
+        );
+      if (extraMembers.length > 0) {
+        await this.memberRepo.save(extraMembers);
+      }
+    }
 
     this.logger.log(`Room created: ${savedRoom.id} by user: ${owner_id}`);
 
@@ -142,32 +161,73 @@ export class ChatService {
           .exec();
 
         const members = await this.memberRepo.findBy({ roomId: room.id });
-        
-        // Also fetch user details for each member from the User service? 
-        // We can just return the memberIds for now, but to get names we'd need to fetch them.
-        // Actually, let's just fetch the UserEntity for each member right here since ChatService has UserEntity injected!
+
         const memberDetails = await Promise.all(
           members.map(async (m) => {
             const userDoc = await this.userRepo.findOneBy({ id: m.userId });
-            // Get profile from Redis or emit to User service if needed, but we have userRepo here
+            const profileDoc = await this.profileRepo.findOneBy({
+              user_id: m.userId,
+            });
             return {
               ...m,
               name: userDoc?.name || 'Unknown User',
               email: userDoc?.email || '',
+              profile_picture: profileDoc?.profile_picture || null,
+              bio: profileDoc?.bio || null,
+              phone_number: profileDoc?.phone_number || null,
             };
-          })
+          }),
         );
+
+        // Mark self-rooms so the frontend can display them as "Saved Messages"
+        const isSelfRoom =
+          members.length > 0 && members.every((m) => m.userId === userId);
 
         return {
           ...room,
           lastMessage,
           memberCount: members.length,
           members: memberDetails,
+          isSelfRoom,
         };
       }),
     );
 
     return roomsWithDetails;
+  }
+
+  /**
+   * Find an existing direct room between two users (or a self-room when userId === targetUserId),
+   * or return null if none exists. Prevents duplicate DM rooms.
+   */
+  async findDirectRoom(
+    userId: string,
+    targetUserId: string,
+  ): Promise<string | null> {
+    const isSelf = userId === targetUserId;
+
+    const myMemberships = await this.memberRepo.findBy({ userId });
+    for (const mem of myMemberships) {
+      const roomMembers = await this.memberRepo.findBy({ roomId: mem.roomId });
+      if (isSelf) {
+        // Self-room: only one distinct member (the user themselves)
+        const uniqueIds = new Set(roomMembers.map((m) => m.userId));
+        if (uniqueIds.size === 1 && uniqueIds.has(userId)) {
+          return mem.roomId;
+        }
+      } else {
+        // Normal DM: exactly two distinct members
+        const memberIds = roomMembers.map((m) => m.userId);
+        if (
+          memberIds.length === 2 &&
+          memberIds.includes(userId) &&
+          memberIds.includes(targetUserId)
+        ) {
+          return mem.roomId;
+        }
+      }
+    }
+    return null;
   }
 
   async getRoomById(roomId: string, userId: string) {
@@ -182,9 +242,25 @@ export class ChatService {
     }
 
     const members = await this.memberRepo.findBy({ roomId });
+    const memberDetails = await Promise.all(
+      members.map(async (m) => {
+        const userDoc = await this.userRepo.findOneBy({ id: m.userId });
+        const profileDoc = await this.profileRepo.findOneBy({
+          user_id: m.userId,
+        });
+        return {
+          ...m,
+          name: userDoc?.name || 'Unknown User',
+          email: userDoc?.email || '',
+          profile_picture: profileDoc?.profile_picture || null,
+          bio: profileDoc?.bio || null,
+          phone_number: profileDoc?.phone_number || null,
+        };
+      }),
+    );
     return {
       room,
-      members,
+      members: memberDetails,
     };
   }
 
@@ -238,5 +314,181 @@ export class ChatService {
     return {
       messages,
     };
+  }
+
+  // ─── MESSAGE MANAGEMENT ───────────────────────────────────────────────────
+
+  async editMessage(data: {
+    messageId: string;
+    userId: string;
+    newContent: string;
+  }) {
+    const { messageId, userId, newContent } = data;
+
+    const message = await this.messageModel.findById(messageId);
+    if (!message) {
+      throw new RpcException('Message not found');
+    }
+
+    if (message.senderId !== userId) {
+      throw new RpcException('You can only edit your own messages');
+    }
+
+    if (message.isDeleted) {
+      throw new RpcException('Cannot edit a deleted message');
+    }
+
+    message.content = newContent;
+    message.isEdited = true;
+    await message.save();
+
+    this.logger.log(`Message ${messageId} edited by user ${userId}`);
+    return message;
+  }
+
+  async deleteMessage(data: {
+    messageId: string;
+    userId: string;
+    isAdmin?: boolean;
+  }) {
+    const { messageId, userId, isAdmin } = data;
+
+    const message = await this.messageModel.findById(messageId);
+    if (!message) {
+      throw new RpcException('Message not found');
+    }
+
+    // Allow deletion if: user is the sender OR user is admin
+    if (message.senderId !== userId && !isAdmin) {
+      throw new RpcException('You can only delete your own messages');
+    }
+
+    message.isDeleted = true;
+    message.content = 'This message was deleted';
+    await message.save();
+
+    this.logger.log(`Message ${messageId} deleted by user ${userId}`);
+    return message;
+  }
+
+  // ─── GROUP MANAGEMENT ─────────────────────────────────────────────────────
+
+  async updateGroupInfo(data: {
+    roomId: string;
+    userId: string;
+    name?: string;
+    description?: string;
+    group_picture?: string;
+  }) {
+    const { roomId, userId, name, description, group_picture } = data;
+
+    const room = await this.roomRepo.findOneBy({ id: roomId });
+    if (!room) {
+      throw new RpcException('Room not found');
+    }
+
+    if (room.type !== RoomType.GROUP) {
+      throw new RpcException('This is not a group room');
+    }
+
+    // Only owner can update group info
+    const membership = await this.memberRepo.findOneBy({ roomId, userId });
+    if (!membership || membership.role !== UserRoomRole.OWNER) {
+      throw new RpcException('Only group owner can update group info');
+    }
+
+    if (name !== undefined) room.name = name;
+    if (description !== undefined) room.description = description;
+    if (group_picture !== undefined) room.group_picture = group_picture;
+
+    const updated = await this.roomRepo.save(room);
+    this.logger.log(`Group ${roomId} updated by owner ${userId}`);
+    return updated;
+  }
+
+  async removeMember(data: {
+    roomId: string;
+    ownerId: string;
+    targetUserId: string;
+  }) {
+    const { roomId, ownerId, targetUserId } = data;
+
+    const room = await this.roomRepo.findOneBy({ id: roomId });
+    if (!room) {
+      throw new RpcException('Room not found');
+    }
+
+    if (room.type !== RoomType.GROUP) {
+      throw new RpcException('Can only remove members from groups');
+    }
+
+    // Verify requester is the owner
+    const ownerMembership = await this.memberRepo.findOneBy({
+      roomId,
+      userId: ownerId,
+    });
+    if (!ownerMembership || ownerMembership.role !== UserRoomRole.OWNER) {
+      throw new RpcException('Only group owner can remove members');
+    }
+
+    // Cannot remove the owner themselves
+    if (ownerId === targetUserId) {
+      throw new RpcException('Owner cannot remove themselves');
+    }
+
+    const targetMembership = await this.memberRepo.findOneBy({
+      roomId,
+      userId: targetUserId,
+    });
+    if (!targetMembership) {
+      throw new RpcException('Target user is not a member');
+    }
+
+    await this.memberRepo.remove(targetMembership);
+    this.logger.log(
+      `User ${targetUserId} removed from room ${roomId} by owner ${ownerId}`,
+    );
+
+    return {
+      status: 'success',
+      message: 'Member removed successfully',
+    };
+  }
+
+  // ─── ADMIN OPERATIONS ─────────────────────────────────────────────────────
+
+  async getAllRooms() {
+    const rooms = await this.roomRepo.find();
+    return rooms;
+  }
+
+  async getAllMessages(roomId?: string) {
+    const query = roomId ? { chatRoomId: roomId } : {};
+    const messages = await this.messageModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .exec();
+    return messages;
+  }
+
+  async adminDeleteRoom(roomId: string) {
+    const room = await this.roomRepo.findOneBy({ id: roomId });
+    if (!room) {
+      throw new RpcException('Room not found');
+    }
+
+    // Delete all memberships
+    const members = await this.memberRepo.findBy({ roomId });
+    await this.memberRepo.remove(members);
+
+    // Delete all messages
+    await this.messageModel.deleteMany({ chatRoomId: roomId });
+
+    // Delete room
+    await this.roomRepo.remove(room);
+
+    this.logger.log(`Admin deleted room ${roomId}`);
+    return { status: 'success', message: 'Room deleted' };
   }
 }

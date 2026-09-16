@@ -3,7 +3,10 @@ import {
   Column,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  CreateDateColumn,
+  OneToOne,
 } from 'typeorm';
+import { UserProfileEntity } from './user-profile.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -18,7 +21,7 @@ export class UserEntity {
   @Column({ unique: true })
   email!: string;
 
-  @Column()
+  @Column({ select: false })
   password!: string;
 
   @Column()
@@ -26,6 +29,9 @@ export class UserEntity {
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role!: UserRole;
+
+  @CreateDateColumn()
+  createdAt!: Date;
 
   @UpdateDateColumn()
   updatedAt!: Date;
@@ -35,4 +41,8 @@ export class UserEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   otpExpiry?: Date | null;
+
+  // Added relation to cascade deletes when user is removed
+  @OneToOne(() => UserProfileEntity, profile => profile.user)
+  profile: UserProfileEntity;
 }

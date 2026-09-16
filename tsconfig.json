@@ -21,13 +21,10 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
+    // PRODUCTION: Enable stricter compiler checks
+    // "noImplicitAny": true,
+    // "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@app/database": [
-        "libs/database/src"
-      ],
-      "@app/database/*": [
-        "libs/database/src/*"
-      ],
       "@libs/common": [
         "libs/common"
       ],
@@ -51,7 +48,14 @@
       ],
       "@libs/guards/*": [
         "libs/Guards/*"
+      ],
+      "@libs/sockets": [
+        "libs/sockets"
+      ],
+      "@libs/sockets/*": [
+        "libs/sockets/*"
       ]
     }
-  }
+  },
+  "exclude": ["node_modules", "dist", "apps/web"]
 }

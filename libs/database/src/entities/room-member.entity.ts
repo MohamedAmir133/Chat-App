@@ -18,9 +18,15 @@ export class RoomMember {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  // @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  // @JoinColumn({ name: 'userId' })
+  // user!: UserEntity;
   @Column()
   userId!: string;
 
+  // @ManyToOne(() => RoomEntity, room => room.members, { onDelete: 'CASCADE' })
+  // @JoinColumn({ name: 'roomId' })
+  // room!: RoomEntity;
   @Column()
   roomId!: string;
 

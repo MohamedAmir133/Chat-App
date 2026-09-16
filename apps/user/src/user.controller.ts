@@ -13,6 +13,9 @@ export class UserController {
   @EventPattern('user.registered')
   async onUserRegistered(@Payload() data: { userId: string; [key: string]: any }) {
     const { userId, ...rest } = data;
+    if (!userId || userId.trim() === '') {
+      return; // skip invalid events
+    }
     await this.userService.createProfile({
       user_id: userId,
       ...rest,
@@ -75,8 +78,8 @@ export class UserController {
   // Admin Operations
 
   @MessagePattern('getAllUsers')
-  async getAllUsers(@Payload() data: { page?: number; limit?: number; search?: string; role?: UserRole }) {
-    return await this.userService.getAllUsers();
+  async getAllUsers(@Payload() data: { page?: number; limit?: number; search?: string; role?: UserRole; excludeUserId?: string }) {
+    return await this.userService.getAllUsers(data.excludeUserId);
   }
 
   @MessagePattern('adminDeleteUser')

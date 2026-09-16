@@ -1,4 +1,4 @@
-import { IsDate, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
 /* eslint-disable*/
 enum RoomType {
   ONE_ONE = 'one_one',
@@ -11,17 +11,17 @@ export class roomDto {
   @IsString()
   name?: string;
 
-  @IsString()
+  @IsOptional()
+  @IsEnum(RoomType)
   type?: RoomType;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   description?: string;
 
   @IsDate()
   createdAt?: Date;
   
-  @IsOptional()
   @IsDate()
   updatedAt?: Date;
   

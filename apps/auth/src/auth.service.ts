@@ -65,13 +65,21 @@ export class AuthService {
         id: savedUser.id,
         name: savedUser.name,
         email: savedUser.email,
+        role: savedUser.role,
       },
     };
   }
 
   async signIn(signInDTO: SignInDTO) {
-    const user = await this.userRepository.findOneBy({
-      email: signInDTO.email,
+    const user = await this.userRepository.findOne({
+      where: { email: signInDTO.email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        name: true,
+        role: true,
+      },
     });
     if (!user) {
       throw new RpcException('User not found');
@@ -93,6 +101,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     };
   }
@@ -111,13 +120,17 @@ export class AuthService {
     });
     const resetUrl = `http://localhost:${process.env.PORT || 6000}/auth/reset-password/${otp}`;
     try {
-      await this.emailService.sendResetPasswordEmail(user.email, resetUrl);
+      await this.emailService.sendResetPasswordEmail(user.email, otp, resetUrl);
+      Logger.log(`[ForgetPassword] Reset OTP ${otp} sent to ${user.email}`);
       return {
         status: 'success',
-        message: 'Reset URL sent to your email',
+        message: 'Reset OTP sent to your email. Please check your inbox (or Spam folder).',
       };
-    } catch (err) {
-      throw new RpcException('Failed to send email');
+    } catch (err: any) {
+      Logger.error(
+        `[ForgetPassword] Email delivery failed for ${user.email}: ${err?.message}`,
+      );
+      throw new RpcException('Failed to send email. Please check your email configuration or network.');
     }
   }
 
@@ -125,8 +138,12 @@ export class AuthService {
     if (resetPasswordDTO.password !== resetPasswordDTO.confirmPassword) {
       throw new RpcException('password and confirmPassword does not match');
     }
+    const otpNum = Number(resetPasswordDTO.otp);
+    if (!otpNum || isNaN(otpNum)) {
+      throw new RpcException('Invalid OTP format');
+    }
     const user = await this.userRepository.findOneBy({
-      otp: resetPasswordDTO.otp,
+      otp: otpNum,
     });
     if (!user) {
       throw new RpcException('Invalid OTP');
@@ -149,8 +166,12 @@ export class AuthService {
     };
   }
   async updatePassword(updatePasswordDTO: UpdatePasswordDTO) {
-    const user = await this.userRepository.findOneBy({
-      id: updatePasswordDTO.userId,
+    const user = await this.userRepository.findOne({
+      where: { id: updatePasswordDTO.userId },
+      select: {
+        id: true,
+        password: true,
+      },
     });
     if (!user) {
       throw new RpcException('User not found');

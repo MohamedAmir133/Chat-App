@@ -13,7 +13,7 @@ export class Message {
   @Prop({ required: true, index: true })
   senderId: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false, default: '' })
   content: string;
 
   @Prop({ type: String })
@@ -38,3 +38,6 @@ export class Message {
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+
+// Optimized for: "Find all messages in a room, ordered by newest first"
+MessageSchema.index({ chatRoomId: 1, createdAt: -1 });
