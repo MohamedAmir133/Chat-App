@@ -14,7 +14,7 @@ import { apiRequest } from '@/lib/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:6000';
 
 // ─── Chat Context type ────────────────────────────────────────────────────────
 

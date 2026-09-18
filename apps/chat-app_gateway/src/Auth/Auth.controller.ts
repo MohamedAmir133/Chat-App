@@ -27,8 +27,8 @@ import { ChatGateway } from '@libs/sockets/socket.config';
 const COOKIE_OPTIONS = {
   maxAge: 1000 * 60 * 60 * 24 * 7,
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production', // only secure in prod
-  sameSite: 'strict' as const,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? ('none' as const) : ('lax' as const),
 };
 
 @Controller('auth')
@@ -48,13 +48,13 @@ export class AuthHttpController {
       email: string;
       password: string;
       confirmPassword: string;
-      bio: string;
-      profile_picture: string;
-      phone_number: string;
-      date_of_birth: string;
-      gender: string;
-      country: string;
-      state: string;
+      bio?: string;
+      profile_picture?: string;
+      phone_number?: string;
+      date_of_birth?: string;
+      gender?: string;
+      country?: string;
+      state?: string;
     },
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -66,13 +66,13 @@ export class AuthHttpController {
         confirmPassword: body.confirmPassword,
       };
       const userProfileDto: userProfileDto = {
-        bio: body.bio,
-        profile_picture: body.profile_picture,
-        phone_number: body.phone_number,
-        date_of_birth: new Date(body.date_of_birth),
-        gender: body.gender,
-        country: body.country,
-        state: body.state,
+        bio: body.bio || '',
+        profile_picture: body.profile_picture || '',
+        phone_number: body.phone_number || '',
+        date_of_birth: body.date_of_birth ? new Date(body.date_of_birth) : undefined as any,
+        gender: body.gender || 'unspecified',
+        country: body.country || 'Global',
+        state: body.state || 'General',
         user_id: '',
       };
       const result = await firstValueFrom(

@@ -11,10 +11,12 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { PresenceService } from './presence.service';
 import * as cookie from 'cookie';
-
-@WebSocketGateway(3002, {
+// @WebSocketGateway(3002, {
+//       origin: ['http://localhost:3400', 'http://localhost:3300', 'http://localhost:3000'],
+// })
+@WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3400', 'http://localhost:3300', 'http://localhost:3000'],
+    origin: true,
     credentials: true,
   },
 })

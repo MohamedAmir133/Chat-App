@@ -124,13 +124,16 @@ export class AuthService {
       Logger.log(`[ForgetPassword] Reset OTP ${otp} sent to ${user.email}`);
       return {
         status: 'success',
-        message: 'Reset OTP sent to your email. Please check your inbox (or Spam folder).',
+        message:
+          'Reset OTP sent to your email. Please check your inbox (or Spam folder).',
       };
     } catch (err: any) {
       Logger.error(
         `[ForgetPassword] Email delivery failed for ${user.email}: ${err?.message}`,
       );
-      throw new RpcException('Failed to send email. Please check your email configuration or network.');
+      throw new RpcException(
+        'Failed to send email. Please check your email configuration or network.',
+      );
     }
   }
 
