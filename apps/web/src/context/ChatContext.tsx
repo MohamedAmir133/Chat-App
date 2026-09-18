@@ -14,7 +14,10 @@ import { apiRequest } from '@/lib/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:6000';
+const rawGatewayUrl = (process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:6000').trim();
+const GATEWAY_URL = (!rawGatewayUrl.startsWith('http://') && !rawGatewayUrl.startsWith('https://'))
+  ? `https://${rawGatewayUrl}`.replace(/\/+$/, '')
+  : rawGatewayUrl.replace(/\/+$/, '');
 
 // ─── Chat Context type ────────────────────────────────────────────────────────
 

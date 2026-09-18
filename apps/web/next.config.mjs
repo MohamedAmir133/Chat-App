@@ -11,7 +11,12 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:6000';
+    let rawBackendUrl = (process.env.BACKEND_URL || 'http://localhost:6000').trim();
+    if (!rawBackendUrl.startsWith('http://') && !rawBackendUrl.startsWith('https://')) {
+      rawBackendUrl = `https://${rawBackendUrl}`;
+    }
+    const backendUrl = rawBackendUrl.replace(/\/+$/, '');
+
     return [
       {
         source: '/api/:path*',
