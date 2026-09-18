@@ -9,7 +9,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "nest build",
+    "build": "nest build chat-app_gateway && nest build auth && nest build chat && nest build user",
     "build:all": "nest build chat-app_gateway && nest build auth && nest build chat && nest build user",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
