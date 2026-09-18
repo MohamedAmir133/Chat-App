@@ -12,6 +12,13 @@ const nextConfig = {
   },
   async rewrites() {
     let rawBackendUrl = (process.env.BACKEND_URL || 'http://localhost:6000').trim();
+    // Strip any accidental leading/trailing quotes
+    rawBackendUrl = rawBackendUrl.replace(/^["']+|["']+$/g, '').trim();
+
+    if (!rawBackendUrl) {
+      rawBackendUrl = 'http://localhost:6000';
+    }
+
     if (!rawBackendUrl.startsWith('http://') && !rawBackendUrl.startsWith('https://')) {
       rawBackendUrl = `https://${rawBackendUrl}`;
     }
