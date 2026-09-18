@@ -3,7 +3,7 @@ export async function apiRequest<T = any>(
   options: RequestInit = {},
 ): Promise<T> {
   const isServer = typeof window === 'undefined';
-  const baseUrl = isServer ? 'http://localhost:6000' : '/api';
+  const baseUrl = isServer ? (process.env.BACKEND_URL || 'http://localhost:6000') : '/api';
   const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   const defaultHeaders: HeadersInit = {
