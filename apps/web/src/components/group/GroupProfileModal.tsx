@@ -6,6 +6,8 @@ import { User, Conversation } from '@/types';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
+import { useToast } from '@/context/ToastContext';
+import { useConfirm } from '@/context/ConfirmContext';
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'demo';
 const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
@@ -42,6 +44,8 @@ interface GroupProfileModalProps {
 export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfileModalProps) {
   const { user: currentUser } = useAuth();
   const { refreshRoomsRef } = useChat();
+  const toast = useToast();
+  const confirm = useConfirm();
   
   const [activeTab, setActiveTab] = useState<'members' | 'add'>('members');
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,30 +113,43 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
         method: 'POST',
         body: JSON.stringify({ userIds: [targetUser.id] }),
       });
+      toast.success(`${targetUser.name} added to group`);
       // Refresh rooms in context to update members
       refreshRoomsRef.current(true);
       // Remove from search results
       setSearchResults(prev => prev.filter(u => u.id !== targetUser.id));
     } catch (err) {
       console.error('Failed to add member:', err);
-      alert('Failed to add member');
+      toast.error('Failed to add member');
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleRemoveMember = async (targetId: string) => {
-    if (!conversation?.roomId || actionLoading || !confirm('Are you sure you want to remove this member?')) return;
+  const handleRemoveMember = async (targetId: string, memberName?: string) => {
+    if (!conversation?.roomId || actionLoading) return;
+
+    const confirmed = await confirm({
+      title: 'Remove Member',
+      message: `Are you sure you want to remove ${memberName || 'this member'} from the group?`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      type: 'danger',
+    });
+
+    if (!confirmed) return;
+
     setActionLoading(`remove-${targetId}`);
     
     try {
       await apiRequest(`/rooms/${conversation.roomId}/members/${targetId}`, {
         method: 'DELETE',
       });
+      toast.success('Member removed from group');
       refreshRoomsRef.current(true);
     } catch (err) {
       console.error('Failed to remove member:', err);
-      alert('Failed to remove member');
+      toast.error('Failed to remove member');
     } finally {
       setActionLoading(null);
     }
@@ -150,11 +167,12 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
         method: 'PUT',
         body: JSON.stringify({ name: editedName.trim() }),
       });
+      toast.success('Group name updated');
       refreshRoomsRef.current(true);
       setIsEditingName(false);
     } catch (err) {
       console.error('Failed to update group name:', err);
-      alert('Failed to update group name');
+      toast.error('Failed to update group name');
     } finally {
       setActionLoading(null);
     }
@@ -172,11 +190,12 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
         method: 'PUT',
         body: JSON.stringify({ description: editedDescription.trim() }),
       });
+      toast.success('Group description updated');
       refreshRoomsRef.current(true);
       setIsEditingDescription(false);
     } catch (err) {
       console.error('Failed to update group description:', err);
-      alert('Failed to update group description');
+      toast.error('Failed to update group description');
     } finally {
       setActionLoading(null);
     }
@@ -188,13 +207,13 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+      toast.error('Please select an image file');
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB');
+      toast.error('Image size must be less than 5MB');
       return;
     }
 
@@ -205,10 +224,11 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
         method: 'PUT',
         body: JSON.stringify({ group_picture: imageUrl }),
       });
+      toast.success('Group photo updated');
       refreshRoomsRef.current(true);
     } catch (err) {
       console.error('Failed to upload group image:', err);
-      alert('Failed to upload group image');
+      toast.error('Failed to upload group image');
     } finally {
       setIsUploadingImage(false);
       if (fileInputRef.current) {
@@ -464,14 +484,24 @@ export function GroupProfileModal({ isOpen, onClose, conversation }: GroupProfil
           {!isOwner && (
             <button
               onClick={async () => {
-                if (!confirm('Are you sure you want to leave this group?')) return;
+                const confirmed = await confirm({
+                  title: 'Leave Group',
+                  message: `Are you sure you want to leave "${conversation.user.name}"? You will no longer receive messages from this group.`,
+                  confirmText: 'Leave Group',
+                  cancelText: 'Cancel',
+                  type: 'danger',
+                });
+
+                if (!confirmed) return;
+
                 try {
                   await apiRequest(`/rooms/${conversation.roomId}/leave`, { method: 'DELETE' });
+                  toast.success('You left the group');
                   refreshRoomsRef.current(true);
                   onClose();
                 } catch (err) {
                   console.error('Failed to leave group:', err);
-                  alert('Failed to leave group');
+                  toast.error('Failed to leave group');
                 }
               }}
               style={{

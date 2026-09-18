@@ -1,9 +1,26 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, LogOut, Save, Phone, MapPin, FileText, Loader2, Camera, User, Lock, Trash2, KeyRound } from 'lucide-react';
+import {
+  X,
+  LogOut,
+  Save,
+  Phone,
+  MapPin,
+  FileText,
+  Loader2,
+  Camera,
+  User as UserIcon,
+  Lock,
+  Trash2,
+  KeyRound,
+  Building,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import { apiRequest } from '@/lib/api';
+import { CountryCombobox } from '@/components/common/CountryCombobox';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -37,6 +54,9 @@ async function uploadToCloudinary(file: File): Promise<string> {
 
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, signOut, updateProfile } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -45,6 +65,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile Edit states
+  const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [country, setCountry] = useState('');
@@ -60,6 +81,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   useEffect(() => {
     if (user) {
+      setName(user.name || '');
       setBio(user.bio || '');
       setPhoneNumber(user.phone_number || '');
       setCountry(user.country || '');
@@ -106,10 +128,11 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     setLoading(true);
     try {
       await updateProfile({
-        bio,
-        phone_number: phoneNumber,
+        name: name.trim(),
+        bio: bio.trim(),
+        phone_number: phoneNumber.trim(),
         country,
-        state,
+        state: state.trim(),
       });
       setIsEditing(false);
     } catch (err) {
@@ -129,6 +152,11 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       return;
     }
 
+    if (newPassword.length < 6) {
+      setPwdError('New password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
     try {
       await apiRequest('/auth/update-password', {
@@ -136,34 +164,55 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         body: JSON.stringify({ oldPassword, newPassword, confirmNewPassword }),
       });
       setPwdSuccess('Password updated successfully!');
+      toast.success('Password updated successfully!');
       setOldPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      setTimeout(() => setIsChangingPassword(false), 1500);
+      setTimeout(() => setIsChangingPassword(false), 1200);
     } catch (err: any) {
       setPwdError(err?.message || 'Failed to update password');
+      toast.error(err?.message || 'Failed to update password');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Account',
+      message:
+        'Are you sure you want to permanently delete your account? All your messages, contacts, and data will be lost permanently. This action cannot be undone.',
+      confirmText: 'Delete Account',
+      cancelText: 'Cancel',
+      type: 'danger',
+    });
+
+    if (!confirmed) return;
+
     setLoading(true);
     try {
       await apiRequest('/user/me', { method: 'DELETE' });
+      toast.success('Account successfully deleted');
       await signOut();
       onClose();
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete account');
+      toast.error(err?.message || 'Failed to delete account');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOut = async () => {
+    const confirmed = await confirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out of your account?',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      type: 'warning',
+    });
+
+    if (!confirmed) return;
+
     await signOut();
     onClose();
   };
@@ -178,7 +227,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         {/* Header */}
         <div style={styles.header}>
           <h3 style={styles.title}>My Profile</h3>
-          <button onClick={onClose} style={styles.closeBtn}>
+          <button onClick={onClose} style={styles.closeBtn} aria-label="Close modal">
             <X size={20} color="#737D8C" />
           </button>
         </div>
@@ -306,37 +355,75 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           </form>
         ) : isEditing ? (
           <form onSubmit={handleSave} style={styles.editForm}>
-            <div style={styles.inputGroup}>
-              <FileText size={18} color="#8A94A6" style={styles.inputIcon} />
-              <input
-                type="text"
-                placeholder="Bio / Headline"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                style={styles.input}
-              />
+            {/* Full Name */}
+            <div>
+              <label style={styles.fieldLabel}>Display Name</label>
+              <div style={styles.inputGroup}>
+                <UserIcon size={18} color="#8A94A6" style={styles.inputIcon} />
+                <input
+                  type="text"
+                  placeholder="Your Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  style={styles.input}
+                />
+              </div>
             </div>
 
-            <div style={styles.inputGroup}>
-              <Phone size={18} color="#8A94A6" style={styles.inputIcon} />
-              <input
-                type="text"
-                placeholder="Phone Number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <MapPin size={18} color="#8A94A6" style={styles.inputIcon} />
-              <input
-                type="text"
-                placeholder="Country"
+            {/* Country Combobox */}
+            <div>
+              <label style={styles.fieldLabel}>Country</label>
+              <CountryCombobox
                 value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                style={styles.input}
+                onChange={(val) => setCountry(val)}
+                placeholder="Select your country..."
               />
+            </div>
+
+            {/* City / State */}
+            <div>
+              <label style={styles.fieldLabel}>City / State (Optional)</label>
+              <div style={styles.inputGroup}>
+                <Building size={18} color="#8A94A6" style={styles.inputIcon} />
+                <input
+                  type="text"
+                  placeholder="e.g. California / Cairo"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label style={styles.fieldLabel}>Phone Number (Optional)</label>
+              <div style={styles.inputGroup}>
+                <Phone size={18} color="#8A94A6" style={styles.inputIcon} />
+                <input
+                  type="text"
+                  placeholder="+1 (555) 000-0000"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            {/* Bio / Headline */}
+            <div>
+              <label style={styles.fieldLabel}>Bio / Headline</label>
+              <div style={styles.inputGroup}>
+                <FileText size={18} color="#8A94A6" style={styles.inputIcon} />
+                <input
+                  type="text"
+                  placeholder="Short bio or status"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  style={styles.input}
+                />
+              </div>
             </div>
 
             <div style={styles.actionRow}>
@@ -356,6 +443,24 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         ) : (
           <div style={styles.detailsList}>
             <div style={styles.detailRow}>
+              <UserIcon size={17} color="#8A94A6" />
+              <div style={styles.detailText}>
+                <span style={styles.detailLabel}>Full Name</span>
+                <p style={styles.detailVal}>{user.name || 'Not set'}</p>
+              </div>
+            </div>
+
+            <div style={styles.detailRow}>
+              <MapPin size={17} color="#8A94A6" />
+              <div style={styles.detailText}>
+                <span style={styles.detailLabel}>Country & Location</span>
+                <p style={styles.detailVal}>
+                  {user.country ? `${user.state ? `${user.state}, ` : ''}${user.country}` : 'Not set'}
+                </p>
+              </div>
+            </div>
+
+            <div style={styles.detailRow}>
               <FileText size={17} color="#8A94A6" />
               <div style={styles.detailText}>
                 <span style={styles.detailLabel}>Bio</span>
@@ -368,16 +473,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               <div style={styles.detailText}>
                 <span style={styles.detailLabel}>Phone</span>
                 <p style={styles.detailVal}>{user.phone_number || 'Not added'}</p>
-              </div>
-            </div>
-
-            <div style={styles.detailRow}>
-              <MapPin size={17} color="#8A94A6" />
-              <div style={styles.detailText}>
-                <span style={styles.detailLabel}>Location</span>
-                <p style={styles.detailVal}>
-                  {user.country ? `${user.state || ''} ${user.country}` : 'Not set'}
-                </p>
               </div>
             </div>
 
@@ -414,7 +509,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
 const styles: Record<string, React.CSSProperties> = {
   modalCard: {
-    maxWidth: '440px',
+    maxWidth: '460px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
   },
   header: {
     display: 'flex',
@@ -436,6 +533,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     backgroundColor: '#F5F6F8',
     cursor: 'pointer',
+    border: 'none',
   },
   avatarSection: {
     display: 'flex',
@@ -443,7 +541,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     paddingBottom: '20px',
     borderBottom: '1px solid #F0F2F5',
-    marginBottom: '20px',
+    marginBottom: '18px',
   },
   avatarWrap: {
     position: 'relative',
@@ -520,13 +618,13 @@ const styles: Record<string, React.CSSProperties> = {
   detailsList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px',
+    gap: '12px',
   },
   detailRow: {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '14px',
-    padding: '8px 12px',
+    padding: '10px 14px',
     backgroundColor: '#F8F9FB',
     borderRadius: '12px',
   },
@@ -549,7 +647,7 @@ const styles: Record<string, React.CSSProperties> = {
   actionsFooter: {
     display: 'flex',
     gap: '12px',
-    marginTop: '16px',
+    marginTop: '6px',
   },
   editBtn: {
     flex: 1,
@@ -561,8 +659,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     textAlign: 'center',
     cursor: 'pointer',
+    border: 'none',
   },
   signOutBtn: {
+    flex: 1,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -574,11 +674,19 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     fontSize: '14px',
     cursor: 'pointer',
+    border: 'none',
   },
   editForm: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '14px',
+  },
+  fieldLabel: {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#475569',
+    marginBottom: '6px',
   },
   inputGroup: {
     display: 'flex',
@@ -586,6 +694,8 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#F5F6F8',
     borderRadius: '12px',
     padding: '0 14px',
+    border: '1.5px solid transparent',
+    transition: 'border-color 0.15s ease',
   },
   inputIcon: {
     marginRight: '10px',
@@ -596,6 +706,8 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'transparent',
     fontSize: '13.5px',
     color: '#1C2024',
+    border: 'none',
+    outline: 'none',
   },
   actionRow: {
     display: 'flex',
@@ -611,6 +723,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     fontSize: '14px',
     cursor: 'pointer',
+    border: 'none',
   },
   saveBtn: {
     flex: 1,
@@ -626,5 +739,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     boxShadow: '0 4px 12px rgba(255, 90, 54, 0.25)',
     cursor: 'pointer',
+    border: 'none',
   },
 };

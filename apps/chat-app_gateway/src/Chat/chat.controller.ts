@@ -16,8 +16,8 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import type { Request } from 'express';
-import { AuthGuard } from 'libs/Guards';
-import { RoomType, roomMemberDto, messageDto } from '@libs/database';
+import { AuthGuard, RolesGuard, Roles } from 'libs/Guards';
+import { RoomType, roomMemberDto, messageDto, UserRole } from '@libs/database';
 import { roomDto } from '@libs/common/dto/rooms/room.dto';
 import { ChatGateway } from '@libs/sockets/socket.config';
 
@@ -53,15 +53,39 @@ export class ChatHttpController {
       if (existingRoomId) {
         // Room already exists — return it without creating a duplicate
         const existing = await firstValueFrom(
-          this.chatClient.send('getRoomById', { userId, roomId: existingRoomId }),
+          this.chatClient.send('getRoomById', {
+            userId,
+            roomId: existingRoomId,
+          }),
         );
         return { room: { id: existingRoomId, ...existing?.room } };
+      }
+
+      // Fetch user info for proper name formatting
+      let ownerName = userId;
+      let targetName = targetUserId;
+      try {
+        const ownerInfo = await firstValueFrom(
+          this.userClient.send('getUserById', { userId }),
+        );
+        if (ownerInfo?.name) ownerName = ownerInfo.name;
+      } catch {}
+
+      if (!isSelf) {
+        try {
+          const targetInfo = await firstValueFrom(
+            this.userClient.send('getUserById', { userId: targetUserId }),
+          );
+          if (targetInfo?.name) targetName = targetInfo.name;
+        } catch {}
       }
 
       // Create the room
       const dto: roomDto = {
         owner_id: userId,
-        name: isSelf ? `saved_${userId}` : `dm_${userId}_${targetUserId}`,
+        name: isSelf
+          ? `Own_${ownerName}_messages`
+          : `${ownerName}_${targetName} Room`,
         type: RoomType.ONE_ONE,
       };
       const result = await firstValueFrom(
@@ -150,8 +174,12 @@ export class ChatHttpController {
         const roomData = await firstValueFrom(
           this.chatClient.send('getRoomById', { userId: senderId, roomId }),
         );
-        memberUserIds = (roomData?.members ?? []).map((m: any) => m.userId ?? m.id).filter(Boolean);
-      } catch { /* best-effort */ }
+        memberUserIds = (roomData?.members ?? [])
+          .map((m: any) => m.userId ?? m.id)
+          .filter(Boolean);
+      } catch {
+        /* best-effort */
+      }
 
       const recipientIds = memberUserIds.filter((uid) => uid !== senderId);
 
@@ -162,7 +190,9 @@ export class ChatHttpController {
             this.userClient.send('getBlockedUsers', { userId: senderId }),
           );
           if (Array.isArray(blockedList) && blockedList.includes(recipientId)) {
-            throw new BadRequestException('Cannot send message. Contact is blocked.');
+            throw new BadRequestException(
+              'Cannot send message. Contact is blocked.',
+            );
           }
         } catch (e: any) {
           if (e instanceof BadRequestException) throw e;
@@ -197,7 +227,10 @@ export class ChatHttpController {
       );
 
       // Broadcast to room channel excluding the sender (sender has optimistic update)
-      this.chatGateway.server.to(`room:${roomId}`).except(`user:${senderId}`).emit('new_message', payload);
+      this.chatGateway.server
+        .to(`room:${roomId}`)
+        .except(`user:${senderId}`)
+        .emit('new_message', payload);
 
       // Also send to individual user channels as fallback for users not in room socket (excluding sender)
       recipientIds.forEach((uid) => {
@@ -238,19 +271,21 @@ export class ChatHttpController {
   ) {
     try {
       const ownerId = (req.user as any).id;
-      
+
       // Check if requester is owner by getting room details
       const roomData = await firstValueFrom(
-        this.chatClient.send('getRoomById', { userId: ownerId, roomId })
+        this.chatClient.send('getRoomById', { userId: ownerId, roomId }),
       );
-      const membership = roomData?.members?.find((m: any) => m.userId === ownerId || m.id === ownerId);
+      const membership = roomData?.members?.find(
+        (m: any) => m.userId === ownerId || m.id === ownerId,
+      );
       if (!membership || membership.role !== 'owner') {
         throw new BadRequestException('Only group owner can add members');
       }
 
       // Add each user
-      const results = [];
-      const addedUsers = [];
+      const results: any[] = [];
+      const addedUsers: string[] = [];
       for (const targetUserId of body.userIds || []) {
         try {
           const res = await firstValueFrom(
@@ -263,7 +298,9 @@ export class ChatHttpController {
           results.push(res);
           addedUsers.push(targetUserId);
         } catch (e) {
-          this.logger.warn(`Failed to add user ${targetUserId} to group ${roomId}: ${e}`);
+          this.logger.warn(
+            `Failed to add user ${targetUserId} to group ${roomId}: ${e}`,
+          );
         }
       }
 
@@ -271,9 +308,9 @@ export class ChatHttpController {
       if (addedUsers.length > 0) {
         // Get updated room data with all members
         const updatedRoomData = await firstValueFrom(
-          this.chatClient.send('getRoomById', { userId: ownerId, roomId })
+          this.chatClient.send('getRoomById', { userId: ownerId, roomId }),
         );
-        
+
         const allMemberIds = (updatedRoomData?.members ?? [])
           .map((m: any) => m.userId ?? m.id)
           .filter(Boolean);
@@ -283,7 +320,7 @@ export class ChatHttpController {
           addedUsers.map(async (userId) => {
             try {
               const userInfo = await firstValueFrom(
-                this.userClient.send('getUserById', { userId })
+                this.userClient.send('getUserById', { userId }),
               );
               return {
                 userId,
@@ -294,7 +331,7 @@ export class ChatHttpController {
             } catch {
               return { userId, name: 'Unknown User' };
             }
-          })
+          }),
         );
 
         const eventPayload = {
@@ -306,14 +343,18 @@ export class ChatHttpController {
 
         // Broadcast to all members in the group
         allMemberIds.forEach((memberId: string) => {
-          this.chatGateway.server.to(`user:${memberId}`).emit('member_added', eventPayload);
+          this.chatGateway.server
+            .to(`user:${memberId}`)
+            .emit('member_added', eventPayload);
         });
-        
+
         // Also broadcast to room channel
-        this.chatGateway.server.to(`room:${roomId}`).emit('member_added', eventPayload);
+        this.chatGateway.server
+          .to(`room:${roomId}`)
+          .emit('member_added', eventPayload);
 
         this.logger.log(
-          `[addMembers] Emitted member_added event for room ${roomId}, added users: ${addedUsers.join(', ')}`
+          `[addMembers] Emitted member_added event for room ${roomId}, added users: ${addedUsers.join(', ')}`,
         );
       }
 
@@ -334,9 +375,11 @@ export class ChatHttpController {
       let roomData;
       try {
         roomData = await firstValueFrom(
-          this.chatClient.send('getRoomById', { userId, roomId })
+          this.chatClient.send('getRoomById', { userId, roomId }),
         );
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
 
       const result = await firstValueFrom(
         this.chatClient.send('leaveRoom', {
@@ -359,14 +402,18 @@ export class ChatHttpController {
 
         // Notify remaining members
         remainingMemberIds.forEach((memberId: string) => {
-          this.chatGateway.server.to(`user:${memberId}`).emit('member_removed', eventPayload);
+          this.chatGateway.server
+            .to(`user:${memberId}`)
+            .emit('member_removed', eventPayload);
         });
-        
+
         // Also broadcast to room channel
-        this.chatGateway.server.to(`room:${roomId}`).emit('member_removed', eventPayload);
+        this.chatGateway.server
+          .to(`room:${roomId}`)
+          .emit('member_removed', eventPayload);
 
         this.logger.log(
-          `[leaveRoom] User ${userId} left room ${roomId}, notified ${remainingMemberIds.length} members`
+          `[leaveRoom] User ${userId} left room ${roomId}, notified ${remainingMemberIds.length} members`,
         );
       }
 
@@ -401,7 +448,10 @@ export class ChatHttpController {
   // DELETE /rooms/:roomId/messages/:messageId — delete a message
   @UseGuards(AuthGuard)
   @Delete('/:roomId/messages/:messageId')
-  async deleteMessage(@Req() req: Request, @Param('messageId') messageId: string) {
+  async deleteMessage(
+    @Req() req: Request,
+    @Param('messageId') messageId: string,
+  ) {
     try {
       const result = await firstValueFrom(
         this.chatClient.send('deleteMessage', {
@@ -414,7 +464,25 @@ export class ChatHttpController {
       throw new BadRequestException(err?.message || err);
     }
   }
-
+  @UseGuards(AuthGuard)
+  @Roles(UserRole.ADMIN)
+  @Delete('/:roomId/messages/:messageId/really-delete')
+  async reallyDeleteMessage(
+    @Req() req: Request,
+    @Param('messageId') messageId: string,
+  ) {
+    try {
+      const result = await firstValueFrom(
+        this.chatClient.send('reallyDeleteMessage', {
+          messageId,
+          userId: (req.user as any).id,
+        }),
+      );
+      return result;
+    } catch (err) {
+      throw new BadRequestException(err?.message || err);
+    }
+  }
   // POST /rooms/group — create a group
   @UseGuards(AuthGuard)
   @Post('/group')
@@ -430,7 +498,7 @@ export class ChatHttpController {
         type: RoomType.GROUP,
         description: body.description,
       };
-      
+
       // Create the room with members in one call
       const result = await firstValueFrom(
         this.chatClient.send('createRoom', {
@@ -442,7 +510,9 @@ export class ChatHttpController {
       // Emit group_created event to all initial members
       if (result?.room?.id) {
         const roomId = result.room.id;
-        const allMemberIds = [userId, ...(body.memberIds || [])].filter(Boolean);
+        const allMemberIds = [userId, ...(body.memberIds || [])].filter(
+          Boolean,
+        );
 
         const eventPayload = {
           roomId,
@@ -452,11 +522,13 @@ export class ChatHttpController {
 
         // Notify all initial members
         allMemberIds.forEach((memberId: string) => {
-          this.chatGateway.server.to(`user:${memberId}`).emit('group_created', eventPayload);
+          this.chatGateway.server
+            .to(`user:${memberId}`)
+            .emit('group_created', eventPayload);
         });
 
         this.logger.log(
-          `[createGroup] Created group ${roomId} with ${allMemberIds.length} members, emitted group_created event`
+          `[createGroup] Created group ${roomId} with ${allMemberIds.length} members, emitted group_created event`,
         );
       }
 
@@ -472,7 +544,8 @@ export class ChatHttpController {
   async updateGroupInfo(
     @Req() req: Request,
     @Param('roomId') roomId: string,
-    @Body() body: { name?: string; description?: string; group_picture?: string },
+    @Body()
+    body: { name?: string; description?: string; group_picture?: string },
   ) {
     try {
       const userId = (req.user as any).id;
@@ -490,7 +563,7 @@ export class ChatHttpController {
       // Emit group_updated event to all group members
       try {
         const roomData = await firstValueFrom(
-          this.chatClient.send('getRoomById', { userId, roomId })
+          this.chatClient.send('getRoomById', { userId, roomId }),
         );
 
         const memberIds = (roomData?.members ?? [])
@@ -510,14 +583,18 @@ export class ChatHttpController {
 
         // Broadcast to all members
         memberIds.forEach((memberId: string) => {
-          this.chatGateway.server.to(`user:${memberId}`).emit('group_updated', eventPayload);
+          this.chatGateway.server
+            .to(`user:${memberId}`)
+            .emit('group_updated', eventPayload);
         });
-        
+
         // Also broadcast to room channel
-        this.chatGateway.server.to(`room:${roomId}`).emit('group_updated', eventPayload);
+        this.chatGateway.server
+          .to(`room:${roomId}`)
+          .emit('group_updated', eventPayload);
 
         this.logger.log(
-          `[updateGroupInfo] Emitted group_updated event for room ${roomId} to ${memberIds.length} members`
+          `[updateGroupInfo] Emitted group_updated event for room ${roomId} to ${memberIds.length} members`,
         );
       } catch (e) {
         this.logger.warn(`Failed to emit group_updated event: ${e}`);
@@ -544,9 +621,11 @@ export class ChatHttpController {
       let roomData;
       try {
         roomData = await firstValueFrom(
-          this.chatClient.send('getRoomById', { userId: ownerId, roomId })
+          this.chatClient.send('getRoomById', { userId: ownerId, roomId }),
         );
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
 
       const result = await firstValueFrom(
         this.chatClient.send('removeMember', {
@@ -570,14 +649,18 @@ export class ChatHttpController {
 
         // Notify all members (including the removed one so they know)
         allMemberIds.forEach((memberId: string) => {
-          this.chatGateway.server.to(`user:${memberId}`).emit('member_removed', eventPayload);
+          this.chatGateway.server
+            .to(`user:${memberId}`)
+            .emit('member_removed', eventPayload);
         });
-        
+
         // Also broadcast to room channel
-        this.chatGateway.server.to(`room:${roomId}`).emit('member_removed', eventPayload);
+        this.chatGateway.server
+          .to(`room:${roomId}`)
+          .emit('member_removed', eventPayload);
 
         this.logger.log(
-          `[removeMember] Owner ${ownerId} removed ${targetUserId} from room ${roomId}, notified ${allMemberIds.length} members`
+          `[removeMember] Owner ${ownerId} removed ${targetUserId} from room ${roomId}, notified ${allMemberIds.length} members`,
         );
       }
 

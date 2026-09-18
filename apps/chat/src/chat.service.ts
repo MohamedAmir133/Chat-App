@@ -308,7 +308,7 @@ export class ChatService {
     }
 
     const messages = await this.messageModel
-      .find({ chatRoomId: roomId, isDeleted: false })
+      .find({ chatRoomId: roomId })
       .sort({ createdAt: 1 })
       .exec();
     return {
@@ -364,7 +364,7 @@ export class ChatService {
     }
 
     message.isDeleted = true;
-    message.content = 'This message was deleted';
+    // Note: keep original content in DB so admin can view it
     await message.save();
 
     this.logger.log(`Message ${messageId} deleted by user ${userId}`);
@@ -470,6 +470,22 @@ export class ChatService {
       .limit(1000)
       .exec();
     return messages;
+  }
+  async reallyDeleteMessage(data: { messageId: string; userId: string; isAdmin?: boolean }) {
+    const { messageId, userId, isAdmin } = data;
+    const message = await this.messageModel.findById(messageId);
+    if (!message) {
+      throw new RpcException('Message not found');
+    }
+    if (message.senderId !== userId && !isAdmin) {
+      throw new RpcException('You are not authorized to delete this message');
+    }
+    await this.messageModel.deleteOne({ _id: messageId });
+    this.logger.log(`User ${userId} permanently deleted message ${messageId} (isAdmin: ${!!isAdmin})`);
+    return {
+      status: 'success',
+      message: 'Message permanently deleted successfully',
+    };
   }
 
   async adminDeleteRoom(roomId: string) {

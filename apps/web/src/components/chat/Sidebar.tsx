@@ -477,14 +477,14 @@ export function Sidebar({ onOpenAuth, onViewProfile, onCreateGroup }: { onOpenAu
 
 const styles: Record<string, React.CSSProperties> = {
   sidebar: {
-    width: '340px',
+    width: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: '24px',
     padding: '24px 16px',
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    maxHeight: 'calc(100vh - 140px)',
+    maxHeight: '100%',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
     flexShrink: 0,
     overflow: 'hidden',

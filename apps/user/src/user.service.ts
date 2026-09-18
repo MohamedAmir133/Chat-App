@@ -120,6 +120,7 @@ export class UserService {
   async updateMe(
     userId: string,
     dto: Partial<{
+      name?: string;
       bio: string;
       profile_picture: string;
       phone_number: string;
@@ -129,23 +130,29 @@ export class UserService {
       state: string;
     }>,
   ) {
+    if (dto.name && dto.name.trim() !== '') {
+      await this.userRepo.update({ id: userId }, { name: dto.name.trim() });
+    }
+
+    const { name, ...profileDto } = dto;
+
     let profile = await this.profileRepo.findOneBy({ user_id: userId });
     
     // If profile doesn't exist yet, create it with the update data
     if (!profile) {
       profile = this.profileRepo.create({
         user_id: userId,
-        bio: dto.bio || '',
-        profile_picture: dto.profile_picture || '',
-        phone_number: dto.phone_number || '',
-        date_of_birth: dto.date_of_birth,
-        gender: dto.gender || '',
-        country: dto.country || '',
-        state: dto.state || '',
+        bio: profileDto.bio || '',
+        profile_picture: profileDto.profile_picture || '',
+        phone_number: profileDto.phone_number || '',
+        date_of_birth: profileDto.date_of_birth,
+        gender: profileDto.gender || '',
+        country: profileDto.country || '',
+        state: profileDto.state || '',
       });
     } else {
       // Profile exists — update it
-      Object.assign(profile, dto);
+      Object.assign(profile, profileDto);
     }
 
     const saved = await this.profileRepo.save(profile);

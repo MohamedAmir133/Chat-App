@@ -31,10 +31,16 @@ dotenv.config();
     {
       provide: 'REDIS_CLIENT',
       useFactory: () =>
-        new Redis({
-          host: process.env.REDIS_HOST || 'localhost',
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        }),
+        process.env.REDIS_URL
+          ? new Redis(process.env.REDIS_URL, {
+              tls: process.env.REDIS_URL.startsWith('rediss://') ? {} : undefined,
+            })
+          : new Redis({
+              host: process.env.REDIS_HOST || 'localhost',
+              port: parseInt(process.env.REDIS_PORT || '6379', 10),
+              password: process.env.REDIS_PASSWORD || undefined,
+              tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+            }),
     },
   ],
 })

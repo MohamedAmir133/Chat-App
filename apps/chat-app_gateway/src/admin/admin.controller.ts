@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Req,
+  Query,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
@@ -121,10 +122,23 @@ export class AdminController {
   }
 
   @Delete('messages/:id')
-  async deleteMessage(@Param('id') id: string) {
+  async deleteMessage(@Param('id') id: string, @Query('permanent') permanent?: string) {
+    try {
+      const pattern = permanent === 'true' ? 'reallyDeleteMessage' : 'deleteMessage';
+      const result = await firstValueFrom(
+        this.chatClient.send(pattern, { messageId: id, userId: 'admin', isAdmin: true }).pipe(timeout(10000)),
+      );
+      return result;
+    } catch (err) {
+      throw new BadRequestException(err?.message || err);
+    }
+  }
+
+  @Delete('messages/:id/permanent')
+  async reallyDeleteMessageAdmin(@Param('id') id: string) {
     try {
       const result = await firstValueFrom(
-        this.chatClient.send('deleteMessage', { messageId: id, userId: 'admin', isAdmin: true }).pipe(timeout(10000)),
+        this.chatClient.send('reallyDeleteMessage', { messageId: id, userId: 'admin', isAdmin: true }).pipe(timeout(10000)),
       );
       return result;
     } catch (err) {

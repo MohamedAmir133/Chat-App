@@ -68,12 +68,15 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Sunday - Fast, Simple 1-on-1 Chat</title>
-        <meta name="description" content="A modern, elegant 1-on-1 chat experience with real-time presence and seamless messaging." />
+        <title>Sunday</title>
+        <link rel="icon" type="image/png" href="/favicon.png" />
+        <link rel="shortcut icon" type="image/png" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/tab-logo.png" />
+        <meta name="description" content="Sunday - A modern, elegant chat experience with real-time presence and seamless messaging." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <main style={styles.mainContainer}>
+      <main style={styles.mainContainer} className="chat-app-main">
         {/* Top Header Bar */}
         <TopNav
           onOpenAuth={() => setIsAuthOpen(true)}
@@ -81,16 +84,21 @@ export default function Home() {
         />
 
         {/* Main Chat App Area */}
-        <div style={styles.chatAreaWrapper}>
+        <div style={styles.chatAreaWrapper} className="chat-area-wrapper">
           {/* Left Messages Sidebar */}
-          <Sidebar
-            onOpenAuth={() => setIsAuthOpen(true)}
-            onViewProfile={handleViewProfile}
-            onCreateGroup={() => setIsGroupModalOpen(true)}
-          />
+          <div className={`sidebar-wrapper ${activeConversation ? 'hide-mobile' : 'show-mobile'}`}>
+            <Sidebar
+              onOpenAuth={() => setIsAuthOpen(true)}
+              onViewProfile={handleViewProfile}
+              onCreateGroup={() => setIsGroupModalOpen(true)}
+            />
+          </div>
 
           {/* Right Active Chat or Empty State */}
-          <section style={styles.contentSection}>
+          <section
+            style={styles.contentSection}
+            className={`content-section ${!activeConversation ? 'hide-mobile' : 'show-mobile'}`}
+          >
             {activeConversation
               ? <ChatView onViewProfile={handleViewProfile} />
               : <EmptyState />}
@@ -131,23 +139,30 @@ export default function Home() {
 const styles: Record<string, React.CSSProperties> = {
   mainContainer: {
     width: '100%',
-    maxWidth: '1240px',
+    maxWidth: '100%',
     margin: '0 auto',
-    padding: '24px 20px',
+    padding: '16px 20px',
     display: 'flex',
     flexDirection: 'column',
-    minHeight: '100vh',
+    height: '100vh',
+    maxHeight: '100vh',
+    boxSizing: 'border-box',
+    overflow: 'hidden',
   },
   chatAreaWrapper: {
     display: 'flex',
-    gap: '20px',
+    gap: '16px',
     flex: 1,
+    minHeight: 0,
     alignItems: 'stretch',
+    overflow: 'hidden',
   },
   contentSection: {
     flex: 1,
     display: 'flex',
     minWidth: 0,
+    height: '100%',
+    minHeight: 0,
   },
   loadingContainer: {
     display: 'flex',

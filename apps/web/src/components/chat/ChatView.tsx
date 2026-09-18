@@ -18,9 +18,12 @@ import {
   RotateCcw,
   Pencil,
   Trash2,
+  ArrowLeft,
 } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import { Message, User } from '@/types';
 import { apiRequest } from '@/lib/api';
 
@@ -72,8 +75,11 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
   const { user: currentUser } = useAuth();
   const {
     activeConversation,
+    selectConversation,
     messages,
     sendMessage,
+    editMessage,
+    deleteMessage,
     blockUser,
     unblockUser,
     blockedUserIds,
@@ -81,6 +87,8 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
     typingUsers,
     sendTyping,
   } = useChat();
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -186,7 +194,7 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
 
     const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB limit
     if (file.size > MAX_SIZE_BYTES) {
-      alert(`File size exceeds the 20MB limit. Selected file is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`);
+      toast.error(`File size exceeds the 20MB limit. Selected file is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -260,14 +268,11 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
   const handleEditSave = async (roomId: string, messageId: string) => {
     if (!editContent.trim()) return;
     try {
-      await apiRequest(`/rooms/${roomId}/messages/${messageId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ content: editContent.trim() }),
-      });
-      // Optimistic: update local message via page refresh of messages
-      window.dispatchEvent(new CustomEvent('chat:refresh-messages'));
+      await editMessage(messageId, editContent.trim());
+      toast.success('Message updated');
     } catch (err) {
       console.error('Failed to edit message:', err);
+      toast.error('Failed to edit message');
     } finally {
       setEditingMsgId(null);
       setEditContent('');
@@ -281,11 +286,22 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
 
   const handleDelete = async (roomId: string, messageId: string) => {
     setActionMsgId(null);
+    const confirmed = await confirm({
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message? It will be removed for all members in this conversation.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+    });
+
+    if (!confirmed) return;
+
     try {
-      await apiRequest(`/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' });
-      window.dispatchEvent(new CustomEvent('chat:refresh-messages'));
+      await deleteMessage(messageId);
+      toast.success('Message deleted');
     } catch (err) {
       console.error('Failed to delete message:', err);
+      toast.error('Failed to delete message');
     }
   };
 
@@ -297,18 +313,27 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
     <div style={styles.container}>
       {/* ── Header ────────────────────────────────────────────── */}
       <div style={styles.header}>
-        <div
-          style={{ ...styles.userInfo, cursor: (isSelfRoom || isGroup) ? (isGroup ? 'pointer' : 'default') : 'pointer' }}
-          onClick={() => {
-            if (isSelfRoom) return;
-            if (isGroup) {
-              onViewProfile?.(activeConversation.user);
-            } else {
-              onViewProfile?.(activeConversation.user);
-            }
-          }}
-          title={isSelfRoom ? 'Saved Messages' : isGroup ? 'View group info' : `View ${activeConversation.user.name}'s profile`}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <button
+            onClick={() => selectConversation(null)}
+            className="mobile-back-btn"
+            style={styles.mobileBackBtn}
+            title="Back to conversations"
+          >
+            <ArrowLeft size={18} color="#1C2024" />
+          </button>
+          <div
+            style={{ ...styles.userInfo, cursor: (isSelfRoom || isGroup) ? (isGroup ? 'pointer' : 'default') : 'pointer' }}
+            onClick={() => {
+              if (isSelfRoom) return;
+              if (isGroup) {
+                onViewProfile?.(activeConversation.user);
+              } else {
+                onViewProfile?.(activeConversation.user);
+              }
+            }}
+            title={isSelfRoom ? 'Saved Messages' : isGroup ? 'View group info' : `View ${activeConversation.user.name}'s profile`}
+          >
           <div style={styles.avatarWrap}>
             {isSelfRoom ? (
               <div style={{
@@ -383,6 +408,7 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
               )}
             </p>
           </div>
+        </div>
         </div>
 
         {/* Actions */}
@@ -610,8 +636,8 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
                   {/* ── Message bubble + action button ── */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexDirection: isMe ? 'row-reverse' : 'row' }}>
 
-                    {/* "..." action button — only for own messages, on hover */}
-                    {isMe && !isEditing && !msg.id?.startsWith('temp-') && (hoveredMsgId === msg.id || actionMsgId === msg.id) && (
+                    {/* "..." action button — only for own messages, on hover, not deleted */}
+                    {isMe && !isEditing && !msg.isDeleted && !msg.id?.startsWith('temp-') && (hoveredMsgId === msg.id || actionMsgId === msg.id) && (
                       <div style={{ position: 'relative' }}>
                         <button
                           onClick={(e) => { e.stopPropagation(); setActionMsgId(actionMsgId === msg.id ? null : msg.id); }}
@@ -652,14 +678,28 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
                     {/* Bubble */}
                     <div
                       style={{
-                        padding: isEditing ? '8px' : hasMedia ? '6px' : '12px 18px',
+                        padding: isEditing ? '8px' : hasMedia && !msg.isDeleted ? '6px' : '12px 18px',
                         borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                        backgroundColor: isMe ? '#FF5A36' : '#F4F5F8',
-                        color: isMe ? '#FFFFFF' : '#1C2024',
+                        backgroundColor: msg.isDeleted
+                          ? '#F8FAFC'
+                          : isMe
+                          ? '#FF5A36'
+                          : '#F4F5F8',
+                        color: msg.isDeleted
+                          ? '#94A3B8'
+                          : isMe
+                          ? '#FFFFFF'
+                          : '#1C2024',
+                        fontStyle: msg.isDeleted ? 'italic' : 'normal',
+                        border: msg.isDeleted ? '1px dashed #CBD5E1' : 'none',
                         fontSize: '14px',
                         lineHeight: 1.5,
                         wordBreak: 'break-word',
-                        boxShadow: isMe ? '0 4px 14px rgba(255, 90, 54, 0.22)' : '0 2px 8px rgba(0, 0, 0, 0.04)',
+                        boxShadow: msg.isDeleted
+                          ? 'none'
+                          : isMe
+                          ? '0 4px 14px rgba(255, 90, 54, 0.22)'
+                          : '0 2px 8px rgba(0, 0, 0, 0.04)',
                         overflow: 'hidden',
                         minWidth: isEditing ? '220px' : undefined,
                       }}
@@ -702,34 +742,61 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
                         </div>
                       ) : (
                         <>
-                          {/* Media content */}
-                          {hasMedia && (
-                            <div style={{ marginBottom: msg.content ? '8px' : '0' }}>
-                              {isVideoMsg ? (
-                                <video src={msg.fileUrl} controls style={{ maxWidth: '280px', maxHeight: '280px', borderRadius: '14px', display: 'block' }} />
-                              ) : (
-                                <img
-                                  src={msg.fileUrl}
-                                  alt="Attached image"
-                                  onClick={() => setViewingImage(msg.fileUrl || null)}
-                                  style={{ maxWidth: '280px', maxHeight: '280px', borderRadius: '14px', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
-                                />
+                          {/* Deleted message placeholder */}
+                          {msg.isDeleted ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontStyle: 'italic', opacity: 0.65 }}>
+                                <span style={{ fontSize: '13px' }}>🗑️ Message Deleted</span>
+                              </p>
+                              {/* Admin-only: show original content */}
+                              {currentUser?.role === 'admin' && msg.content && (
+                                <div style={{
+                                  marginTop: '4px',
+                                  padding: '6px 10px',
+                                  backgroundColor: 'rgba(239,68,68,0.08)',
+                                  borderRadius: '8px',
+                                  border: '1px dashed rgba(239,68,68,0.35)',
+                                }}>
+                                  <p style={{ margin: 0, fontSize: '11px', color: '#EF4444', fontWeight: 600, marginBottom: '2px', fontStyle: 'normal' }}>Admin view — original content:</p>
+                                  <p style={{ margin: 0, fontSize: '12px', color: '#7C3AED', fontStyle: 'normal', wordBreak: 'break-word' }}>{msg.content}</p>
+                                </div>
                               )}
                             </div>
-                          )}
-                          {/* Text content */}
-                          {msg.content && (
-                            <p style={{ margin: 0, padding: hasMedia ? '4px 8px 6px' : 0 }}>{msg.content}</p>
+                          ) : (
+                            <>
+                              {/* Media content */}
+                              {hasMedia && (
+                                <div style={{ marginBottom: msg.content ? '8px' : '0' }}>
+                                  {isVideoMsg ? (
+                                    <video src={msg.fileUrl} controls style={{ maxWidth: '280px', maxHeight: '280px', borderRadius: '14px', display: 'block' }} />
+                                  ) : (
+                                    <img
+                                      src={msg.fileUrl}
+                                      alt="Attached image"
+                                      onClick={() => setViewingImage(msg.fileUrl || null)}
+                                      style={{ maxWidth: '280px', maxHeight: '280px', borderRadius: '14px', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                              {/* Text content */}
+                              {msg.content && (
+                                <p style={{ margin: 0, padding: hasMedia ? '4px 8px 6px' : 0 }}>{msg.content}</p>
+                              )}
+                            </>
                           )}
                         </>
                       )}
                     </div>
                   </div>
 
-                  {/* Timestamp + status */}
+                  {/* Timestamp + status + edited tag */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMe ? 'flex-end' : 'flex-start', gap: '4px', padding: '0 4px' }}>
                     <span style={{ fontSize: '10.5px', color: '#9BA3AF' }}>{msg.createdAt}</span>
-                    {isMe && (
+                    {msg.isEdited && !msg.isDeleted && (
+                      <span style={{ fontSize: '10px', color: '#9BA3AF', fontStyle: 'italic' }}>(edited)</span>
+                    )}
+                    {isMe && !msg.isDeleted && (
                       <span style={{ display: 'flex', alignItems: 'center' }} title={msg.status === 'read' ? 'Seen' : msg.status === 'delivered' ? 'Delivered' : 'Sent'}>
                         {msg.status === 'read' ? <CheckCheck size={14} color="#FF5A36" /> : msg.status === 'delivered' ? <CheckCheck size={14} color="#9BA3AF" /> : <Check size={14} color="#9BA3AF" />}
                       </span>
@@ -960,14 +1027,27 @@ export function ChatView({ onViewProfile }: { onViewProfile?: (user: User) => vo
 const styles: Record<string, React.CSSProperties> = {
   container: {
     flex: 1,
-    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
     borderRadius: '24px',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
     overflow: 'hidden',
-    maxHeight: 'calc(100vh - 140px)',
+    height: '100%',
+    minHeight: 0,
+  },
+  mobileBackBtn: {
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '34px',
+    height: '34px',
+    borderRadius: '50%',
+    backgroundColor: '#F5F6F8',
+    cursor: 'pointer',
+    flexShrink: 0,
+    border: 'none',
+    marginRight: '2px',
   },
   header: {
     display: 'flex',

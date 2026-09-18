@@ -34,8 +34,10 @@ interface ChatContextType {
   sendTyping: (isTyping: boolean) => void;
   setActiveTab: (tab: 'all' | 'unread' | 'blocked' | 'archived') => void;
   setSearchQuery: (query: string) => void;
-  selectConversation: (conversation: Conversation) => void;
+  selectConversation: (conversation: Conversation | null) => void;
   sendMessage: (content: string, fileUrl?: string, messageType?: string) => Promise<void>;
+  editMessage: (messageId: string, content: string) => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
   startDirectChat: (targetUserId: string, targetUser: User) => Promise<void>;
   blockUser: (userId: string) => Promise<void>;
   unblockUser: (userId: string) => Promise<void>;
@@ -357,11 +359,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           senderId,
           recipientId: m.recipientId || (senderId === user.id ? conv.user.id : user.id),
           content: m.content,
-          fileUrl: m.fileUrl,
+          fileUrl: m.isDeleted ? undefined : m.fileUrl,
           messageType: m.messageType || 'text',
           createdAt: rawDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           rawCreatedAt: rawDate.toISOString(),
           status: 'read',
+          isDeleted: m.isDeleted === true,
+          isEdited: m.isEdited === true,
         };
       });
       setMessagesMap((prev) => ({ ...prev, [conv.user.id]: msgs }));
@@ -369,6 +373,62 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to load messages:', err);
     } finally {
       setIsLoadingMessages(false);
+    }
+  };
+
+  // ── Edit & Delete message methods (immediate UI update) ───────────────────
+  const deleteMessage = async (messageId: string) => {
+    if (!activeConversation || !user) return;
+    const roomId = activeConversation.roomId || roomIdMapRef.current[activeConversation.user.id];
+    if (!roomId) return;
+
+    // Optimistically update message in state immediately so UI reflects without refresh
+    setMessagesMap((prev) => {
+      const current = prev[activeConversation.user.id] || [];
+      return {
+        ...prev,
+        [activeConversation.user.id]: current.map((m) =>
+          m.id === messageId
+            ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: undefined }
+            : m,
+        ),
+      };
+    });
+
+    try {
+      await apiRequest(`/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      loadMessages(activeConversation, true);
+      throw err;
+    }
+  };
+
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!activeConversation || !user) return;
+    const roomId = activeConversation.roomId || roomIdMapRef.current[activeConversation.user.id];
+    if (!roomId) return;
+
+    // Optimistically update message in state immediately
+    setMessagesMap((prev) => {
+      const current = prev[activeConversation.user.id] || [];
+      return {
+        ...prev,
+        [activeConversation.user.id]: current.map((m) =>
+          m.id === messageId ? { ...m, isEdited: true, content: newContent } : m,
+        ),
+      };
+    });
+
+    try {
+      await apiRequest(`/rooms/${roomId}/messages/${messageId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ content: newContent }),
+      });
+    } catch (err) {
+      console.error('Failed to edit message:', err);
+      loadMessages(activeConversation, true);
+      throw err;
     }
   };
 
@@ -805,7 +865,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]); // reconnect only when the logged-in user changes
 
   // ── Select conversation ──────────────────────────────────────────────────
-  const selectConversation = (conversation: Conversation) => {
+  const selectConversation = (conversation: Conversation | null) => {
+    if (!conversation) {
+      setActiveConversation(null);
+      return;
+    }
     // Pick freshest version from state so presence and metadata are completely up to date
     const fresh = conversationsRef.current.find((c) => c.user.id === conversation.user.id) || conversation;
     setActiveConversation(fresh);
@@ -1038,6 +1102,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setSearchQuery,
         selectConversation,
         sendMessage,
+        editMessage,
+        deleteMessage,
         startDirectChat,
         blockUser,
         unblockUser,

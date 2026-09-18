@@ -15,17 +15,18 @@ export function TopNav({ onOpenAuth, onOpenProfile }: TopNavProps) {
   const { searchQuery, setSearchQuery } = useChat();
 
   return (
-    <header style={styles.header}>
+    <header style={styles.header} className="top-nav-header">
       {/* Brand Logo */}
       <div style={styles.brand}>
-        <div style={styles.logoBadge}>
-          <span style={styles.logoLetter}>S</span>
-        </div>
-        <span style={styles.brandName}>Sunday</span>
+        <img
+          src="/logo.png"
+          alt="Sunday"
+          style={styles.brandLogoImg}
+        />
       </div>
 
       {/* Global Search Bar */}
-      <div style={styles.searchContainerOuter}>
+      <div style={styles.searchContainerOuter} className="top-nav-search">
         <div style={styles.searchContainer}>
           <Search size={17} color="#8A94A6" style={styles.searchIcon} />
           <input
@@ -82,32 +83,16 @@ const styles: Record<string, React.CSSProperties> = {
   brand: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
     cursor: 'pointer',
     userSelect: 'none',
   },
-  logoBadge: {
-    width: '36px',
-    height: '36px',
+  brandLogoImg: {
+    height: '42px',
+    width: 'auto',
+    maxHeight: '42px',
     borderRadius: '10px',
-    backgroundColor: '#FFF0EB',
-    border: '1px solid #FFE0D6',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#FF5A36',
-    fontWeight: 800,
-    fontSize: '20px',
-  },
-  logoLetter: {
-    color: '#FF5A36',
-    fontFamily: 'inherit',
-  },
-  brandName: {
-    fontSize: '20px',
-    fontWeight: 700,
-    color: '#1C2024',
-    letterSpacing: '-0.4px',
+    objectFit: 'contain',
+    display: 'block',
   },
   searchContainer: {
     display: 'flex',

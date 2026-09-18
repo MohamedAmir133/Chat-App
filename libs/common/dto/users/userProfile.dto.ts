@@ -3,6 +3,11 @@ import { IsDate, IsOptional, IsPhoneNumber, IsString } from 'class-validator';
 export class userProfileDto {
   @IsString()
   user_id!: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @IsOptional()
   @IsString()
   bio?: string;

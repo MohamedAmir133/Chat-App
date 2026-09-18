@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, Search, Check, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { apiRequest } from '@/lib/api';
 import { User } from '@/types';
 
@@ -14,6 +15,7 @@ interface CreateGroupModalProps {
 
 export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGroupModalProps) {
   const { user } = useAuth();
+  const toast = useToast();
   const [step, setStep] = useState<'info' | 'members'>('info');
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -84,11 +86,12 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         }),
       });
 
+      toast.success('Group created successfully!');
       onGroupCreated?.();
       onClose();
     } catch (err) {
       console.error('Failed to create group:', err);
-      alert('Failed to create group');
+      toast.error('Failed to create group');
     } finally {
       setLoading(false);
     }

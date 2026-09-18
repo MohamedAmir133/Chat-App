@@ -24,6 +24,9 @@ const entities = [UserEntity, UserProfileEntity, RoomEntity, RoomMember];
       synchronize: process.env.NODE_ENV !== 'production',
       // PRODUCTION: Enable SSL for cloud databases (AWS RDS, Supabase, Neon)
       // ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      // Enable SSL for cloud databases like Supabase
+      ssl:
+        process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     }),
     TypeOrmModule.forFeature(entities),
   ],

@@ -78,6 +78,13 @@ export class ChatController {
     return await this.chatService.deleteMessage(data);
   }
 
+  @MessagePattern('reallyDeleteMessage')
+  async trueDeleteMessage(
+    @Payload() data: { messageId: string; userId: string; isAdmin?: boolean },
+  ) {
+    return await this.chatService.reallyDeleteMessage(data);
+  }
+
   // ─── Group Management ────────────────────────────────────────────────────
 
   @MessagePattern('updateGroupInfo')
