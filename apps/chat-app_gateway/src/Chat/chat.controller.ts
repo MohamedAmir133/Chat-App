@@ -114,13 +114,27 @@ export class ChatHttpController {
   @Get('/')
   async getMyRooms(@Req() req: Request) {
     try {
+      const userId = (req.user as any).id;
+      this.logger.log(`[getMyRooms] Fetching rooms for userId=${userId}`);
+      
       const result = await firstValueFrom(
         this.chatClient.send('getUserRooms', {
-          userId: (req.user as any).id,
-        }).pipe(timeout(10000)),
+          userId,
+        }).pipe(timeout(30000)), // Increased timeout to 30 seconds
       );
+      
+      this.logger.log(`[getMyRooms] Successfully fetched ${result?.rooms?.length || 0} rooms for userId=${userId}`);
       return result;
     } catch (err) {
+      this.logger.error(`[getMyRooms] Error fetching rooms: ${err?.message || err}`);
+      this.logger.error(`[getMyRooms] Error stack: ${err?.stack}`);
+      
+      // Provide more helpful error message
+      if (err?.message === 'Timeout has occurred') {
+        throw new BadRequestException(
+          'Chat service is not responding. Please check if the chat service is running and connected to RabbitMQ.',
+        );
+      }
       throw new BadRequestException(err?.message || err);
     }
   }

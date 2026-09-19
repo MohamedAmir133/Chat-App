@@ -10,6 +10,30 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+function cleanEnv(val?: string, fallback = ''): string {
+  return (val || fallback).replace(/^["']+|["']+$/g, '').trim();
+}
+
+function getMongoUri(): string {
+  // Check multiple common MongoDB environment variable names
+  const mongoUri = 
+    cleanEnv(process.env.MONGO_URI) ||
+    cleanEnv(process.env.MONGODB_URI) ||
+    cleanEnv(process.env.MONGODB_URL) ||
+    cleanEnv(process.env.MONGO_URL) ||
+    'mongodb://localhost:27017/chatapp';
+  
+  // Validate the URI format
+  if (mongoUri && !mongoUri.startsWith('mongodb://') && !mongoUri.startsWith('mongodb+srv://')) {
+    console.error(`❌ Invalid MongoDB URI format: ${mongoUri}`);
+    console.error('Expected format: mongodb://... or mongodb+srv://...');
+    throw new Error('Invalid MongoDB connection string format');
+  }
+  
+  console.log(`✅ Using MongoDB URI: ${mongoUri.replace(/:[^:@]+@/, ':****@')}`);
+  return mongoUri;
+}
+
 @Module({
   imports: [
     // PostgreSQL
@@ -17,9 +41,7 @@ dotenv.config();
     TypeOrmModule.forFeature([UserEntity, UserProfileEntity]),
 
     // MongoDB for blocked users
-    MongooseModule.forRoot(
-      process.env.MONGO_URI || 'mongodb://localhost:27017/chatapp',
-    ),
+    MongooseModule.forRoot(getMongoUri()),
     MongooseModule.forFeature([
       { name: BlockedUser.name, schema: BlockedUserSchema },
     ]),

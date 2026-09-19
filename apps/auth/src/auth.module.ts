@@ -8,6 +8,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { EmailModule } from '@libs/email';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 
+function cleanEnv(val?: string, fallback = ''): string {
+  return (val || fallback).replace(/^["']+|["']+$/g, '').trim();
+}
+
 @Module({
   imports: [
     ClientsModule.register([
@@ -16,9 +20,9 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         transport: Transport.RMQ,
         options: {
           urls: [
-            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+            cleanEnv(process.env.RABBITMQ_URL, 'amqp://guest:guest@localhost:5672'),
           ],
-          queue: process.env.USER_QUEUE || 'user_queue',
+          queue: cleanEnv(process.env.USER_QUEUE, 'user_queue'),
           queueOptions: {
             durable: false,
           },

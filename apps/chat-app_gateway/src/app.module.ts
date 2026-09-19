@@ -12,6 +12,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+function cleanEnv(val?: string, fallback = ''): string {
+  return (val || fallback).replace(/^["']+|["']+$/g, '').trim();
+}
+
 @Module({
   imports: [
     SocketModule,
@@ -25,9 +29,9 @@ dotenv.config();
         transport: Transport.RMQ,
         options: {
           urls: [
-            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+            cleanEnv(process.env.RABBITMQ_URL, 'amqp://guest:guest@localhost:5672'),
           ],
-          queue: process.env.AUTH_QUEUE || 'auth_queue',
+          queue: cleanEnv(process.env.AUTH_QUEUE, 'auth_queue'),
           queueOptions: {
             durable: false,
           },
@@ -38,9 +42,9 @@ dotenv.config();
         transport: Transport.RMQ,
         options: {
           urls: [
-            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+            cleanEnv(process.env.RABBITMQ_URL, 'amqp://guest:guest@localhost:5672'),
           ],
-          queue: process.env.CHAT_QUEUE || 'chat_queue',
+          queue: cleanEnv(process.env.CHAT_QUEUE, 'chat_queue'),
           queueOptions: {
             durable: false,
           },
@@ -51,9 +55,9 @@ dotenv.config();
         transport: Transport.RMQ,
         options: {
           urls: [
-            process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+            cleanEnv(process.env.RABBITMQ_URL, 'amqp://guest:guest@localhost:5672'),
           ],
-          queue: process.env.USER_QUEUE || 'user_queue',
+          queue: cleanEnv(process.env.USER_QUEUE, 'user_queue'),
           queueOptions: {
             durable: false,
           },
