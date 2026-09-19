@@ -44,6 +44,7 @@ async function bootstrap() {
 
   await app.listen();
   logger.log(`✅ User service is running on queue ${queue}`);
+  logger.log(`🎯 Waiting for messages on RabbitMQ...`);
 }
 bootstrap().catch((err) => {
   logger.error('❌ Failed to bootstrap user service:', err);

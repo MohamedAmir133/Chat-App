@@ -42,6 +42,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
   await app.listen();
   logger.log(`✅ Chat service is running on queue ${queue}`);
+  logger.log(`🎯 Waiting for messages on RabbitMQ...`);
 }
 
 bootstrap().catch((err) => {

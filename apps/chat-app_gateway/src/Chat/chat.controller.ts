@@ -120,7 +120,7 @@ export class ChatHttpController {
       const result = await firstValueFrom(
         this.chatClient.send('getUserRooms', {
           userId,
-        }).pipe(timeout(30000)), // Increased timeout to 30 seconds
+        }).pipe(timeout(60000)), // Increased timeout to 60 seconds
       );
       
       this.logger.log(`[getMyRooms] Successfully fetched ${result?.rooms?.length || 0} rooms for userId=${userId}`);
