@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RpcException } from '@nestjs/microservices';
@@ -142,7 +142,7 @@ export class ChatService {
   async getUserRooms(userId: string) {
     console.log(`[getUserRooms] Starting for userId: ${userId}`);
     
-    // Find all memberships for this user
+    // Step 1: Fetch all user's memberships
     console.log(`[getUserRooms] Fetching memberships...`);
     const memberships = await this.memberRepo.findBy({ userId });
     console.log(`[getUserRooms] Found ${memberships?.length || 0} memberships`);
@@ -153,54 +153,84 @@ export class ChatService {
     }
 
     const roomIds = memberships.map((m) => m.roomId);
+
+    // Step 2: Fetch all rooms in ONE query
     console.log(`[getUserRooms] Fetching ${roomIds.length} rooms...`);
-    const rooms = await this.roomRepo
-      .createQueryBuilder('room')
-      .where('room.id IN (:...roomIds)', { roomIds })
-      .getMany();
+    const rooms = await this.roomRepo.findBy({ id: In(roomIds) });
     console.log(`[getUserRooms] Found ${rooms.length} rooms`);
 
-    // Attach latest message from MongoDB for each room and fetch members
-    console.log(`[getUserRooms] Fetching details for each room...`);
-    const roomsWithDetails = await Promise.all(
-      rooms.map(async (room) => {
-        const lastMessage = await this.messageModel
-          .findOne({ chatRoomId: room.id })
+    // Step 3: Fetch all members for ALL rooms in ONE query
+    console.log(`[getUserRooms] Fetching all members for these rooms...`);
+    const allMembers = await this.memberRepo.findBy({ roomId: In(roomIds) });
+    console.log(`[getUserRooms] Found ${allMembers.length} total members`);
+
+    // Step 4: Fetch all users mentioned in memberships in ONE query
+    const allUserIds = Array.from(new Set(allMembers.map((m) => m.userId)));
+    console.log(`[getUserRooms] Fetching ${allUserIds.length} unique users...`);
+    const users = await this.userRepo.find({
+      where: { id: In(allUserIds) },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    // Step 5: Fetch all profiles for users in ONE query
+    console.log(`[getUserRooms] Fetching profiles...`);
+    const profiles = await this.profileRepo.find({
+      where: { user_id: In(allUserIds) },
+    });
+    const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
+
+    // Step 6: Group members by roomId
+    const membersByRoomId = new Map<string, RoomMember[]>();
+    for (const roomId of roomIds) {
+      membersByRoomId.set(
+        roomId,
+        allMembers.filter((m) => m.roomId === roomId),
+      );
+    }
+
+    // Step 7: Fetch last message for each room from MongoDB (in parallel)
+    console.log(`[getUserRooms] Fetching last messages from MongoDB...`);
+    const lastMessages = await Promise.all(
+      roomIds.map((roomId) =>
+        this.messageModel
+          .findOne({ chatRoomId: roomId })
           .sort({ createdAt: -1 })
-          .exec();
-
-        const members = await this.memberRepo.findBy({ roomId: room.id });
-
-        const memberDetails = await Promise.all(
-          members.map(async (m) => {
-            const userDoc = await this.userRepo.findOneBy({ id: m.userId });
-            const profileDoc = await this.profileRepo.findOneBy({
-              user_id: m.userId,
-            });
-            return {
-              ...m,
-              name: userDoc?.name || 'Unknown User',
-              email: userDoc?.email || '',
-              profile_picture: profileDoc?.profile_picture || null,
-              bio: profileDoc?.bio || null,
-              phone_number: profileDoc?.phone_number || null,
-            };
-          }),
-        );
-
-        // Mark self-rooms so the frontend can display them as "Saved Messages"
-        const isSelfRoom =
-          members.length > 0 && members.every((m) => m.userId === userId);
-
-        return {
-          ...room,
-          lastMessage,
-          memberCount: members.length,
-          members: memberDetails,
-          isSelfRoom,
-        };
-      }),
+          .exec()
+          .catch(() => null),
+      ),
     );
+    const lastMessageMap = new Map(roomIds.map((id, i) => [id, lastMessages[i]]));
+
+    // Step 8: Build result with all preloaded data
+    console.log(`[getUserRooms] Building response with preloaded data...`);
+    const roomsWithDetails = rooms.map((room, idx) => {
+      const roomMembers = membersByRoomId.get(room.id) || [];
+      
+      const memberDetails = roomMembers.map((m) => {
+        const userDoc = userMap.get(m.userId);
+        const profileDoc = profileMap.get(m.userId);
+        return {
+          ...m,
+          name: userDoc?.name || 'Unknown User',
+          email: userDoc?.email || '',
+          profile_picture: profileDoc?.profile_picture || null,
+          bio: profileDoc?.bio || null,
+          phone_number: profileDoc?.phone_number || null,
+        };
+      });
+
+      // Mark self-rooms so the frontend can display them as "Saved Messages"
+      const isSelfRoom =
+        roomMembers.length > 0 && roomMembers.every((m) => m.userId === userId);
+
+      return {
+        ...room,
+        lastMessage: lastMessageMap.get(room.id),
+        memberCount: roomMembers.length,
+        members: memberDetails,
+        isSelfRoom,
+      };
+    });
 
     console.log(`[getUserRooms] Completed, returning ${roomsWithDetails.length} rooms with details`);
     return roomsWithDetails;
@@ -518,3 +548,4 @@ export class ChatService {
     return { status: 'success', message: 'Room deleted' };
   }
 }
+
