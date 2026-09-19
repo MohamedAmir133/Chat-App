@@ -13,7 +13,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 function cleanEnv(val?: string, fallback = ''): string {
-  return (val || fallback).replace(/^["']+|["']+$/g, '').trim();
+  return (val || fallback).replace(/^[\"']+|[\"']+$/g, '').trim();
 }
 
 @Module({
@@ -35,8 +35,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          persistent: true,
           prefetchCount: 1,
+          persistent: true,
           socketOptions: {
             reconnect: true,
             reconnectDelayMax: 5000,
@@ -54,8 +54,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          persistent: true,
           prefetchCount: 1,
+          persistent: true,
           socketOptions: {
             reconnect: true,
             reconnectDelayMax: 5000,
@@ -73,8 +73,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          persistent: true,
           prefetchCount: 1,
+          persistent: true,
           socketOptions: {
             reconnect: true,
             reconnectDelayMax: 5000,
@@ -93,3 +93,4 @@ function cleanEnv(val?: string, fallback = ''): string {
   providers: [AppService],
 })
 export class AppModule {}
+
