@@ -44,7 +44,18 @@ export class ChatController {
 
   @MessagePattern('getUserRooms')
   async getUserRooms(@Payload() data: { userId: string }) {
-    return await this.chatService.getUserRooms(data.userId);
+    console.log(`[getUserRooms] Received request for userId: ${data.userId}`);
+    const startTime = Date.now();
+    try {
+      const result = await this.chatService.getUserRooms(data.userId);
+      const duration = Date.now() - startTime;
+      console.log(`[getUserRooms] Completed in ${duration}ms, returned ${result?.length || 0} rooms`);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[getUserRooms] Failed after ${duration}ms:`, error);
+      throw error;
+    }
   }
 
   @MessagePattern('getRoomById')

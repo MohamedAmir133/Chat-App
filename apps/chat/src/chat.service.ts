@@ -140,19 +140,28 @@ export class ChatService {
   }
 
   async getUserRooms(userId: string) {
+    console.log(`[getUserRooms] Starting for userId: ${userId}`);
+    
     // Find all memberships for this user
+    console.log(`[getUserRooms] Fetching memberships...`);
     const memberships = await this.memberRepo.findBy({ userId });
+    console.log(`[getUserRooms] Found ${memberships?.length || 0} memberships`);
+    
     if (!memberships || memberships.length === 0) {
+      console.log(`[getUserRooms] No memberships found, returning empty array`);
       return [];
     }
 
     const roomIds = memberships.map((m) => m.roomId);
+    console.log(`[getUserRooms] Fetching ${roomIds.length} rooms...`);
     const rooms = await this.roomRepo
       .createQueryBuilder('room')
       .where('room.id IN (:...roomIds)', { roomIds })
       .getMany();
+    console.log(`[getUserRooms] Found ${rooms.length} rooms`);
 
     // Attach latest message from MongoDB for each room and fetch members
+    console.log(`[getUserRooms] Fetching details for each room...`);
     const roomsWithDetails = await Promise.all(
       rooms.map(async (room) => {
         const lastMessage = await this.messageModel
@@ -193,6 +202,7 @@ export class ChatService {
       }),
     );
 
+    console.log(`[getUserRooms] Completed, returning ${roomsWithDetails.length} rooms with details`);
     return roomsWithDetails;
   }
 
