@@ -16,7 +16,7 @@ async function bootstrap() {
   const rmqURL = clean(process.env.RABBITMQ_URL, 'amqp://guest:guest@localhost:5672');
   const queue = clean(process.env.CHAT_QUEUE, 'chat_queue');
   
-  logger.log(`🚀 Starting Chat Service...`);
+  logger.log(`🚀 Starting Chat Service (with crypto fix)...`);
   logger.log(`📡 RabbitMQ URL: ${rmqURL.replace(/:[^:@]+@/, ':****@')}`);
   logger.log(`📬 Queue: ${queue}`);
   logger.log(`🗄️  MongoDB URI: ${process.env.MONGO_URI ? 'Set ✅' : 'Not set ❌'}`);
