@@ -35,8 +35,12 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          noAck: true,
+          persistent: true,
           prefetchCount: 1,
+          socketOptions: {
+            reconnect: true,
+            reconnectDelayMax: 5000,
+          },
         },
       },
       {
@@ -50,8 +54,12 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          noAck: true,
+          persistent: true,
           prefetchCount: 1,
+          socketOptions: {
+            reconnect: true,
+            reconnectDelayMax: 5000,
+          },
         },
       },
       {
@@ -65,8 +73,12 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          noAck: true,
+          persistent: true,
           prefetchCount: 1,
+          socketOptions: {
+            reconnect: true,
+            reconnectDelayMax: 5000,
+          },
         },
       },
     ]),
