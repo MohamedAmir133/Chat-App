@@ -2,6 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { ChatModule } from './chat.module';
 import { Logger } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import * as crypto from 'crypto';
+
+// Ensure crypto is available globally for MongoDB driver
+if (typeof global.crypto === 'undefined') {
+  (global as any).crypto = crypto;
+}
 
 const logger = new Logger('ChatService');
 

@@ -3,8 +3,14 @@ import { UserModule } from './user.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import * as dotenv from 'dotenv';
+import * as crypto from 'crypto';
 
 dotenv.config();
+
+// Ensure crypto is available globally for MongoDB driver
+if (typeof global.crypto === 'undefined') {
+  (global as any).crypto = crypto;
+}
 
 const logger = new Logger('UserService');
 
