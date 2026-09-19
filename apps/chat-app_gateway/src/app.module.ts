@@ -35,13 +35,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          persistent: true,
-          noAck: true, // Reply queues must use noAck: true
-          prefetchCount: 10,
-          socketOptions: {
-            heartbeatIntervalInSeconds: 60,
-            reconnectTimeInSeconds: 5,
-          },
+          noAck: true,
+          prefetchCount: 1,
         },
       },
       {
@@ -55,15 +50,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          // Persistent connection settings
-          persistent: true,
-          noAck: true, // Reply queues must use noAck: true
-          prefetchCount: 10,
-          // Socket options for connection stability
-          socketOptions: {
-            heartbeatIntervalInSeconds: 60,
-            reconnectTimeInSeconds: 5,
-          },
+          noAck: true,
+          prefetchCount: 1,
         },
       },
       {
@@ -77,13 +65,8 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
-          persistent: true,
-          noAck: true, // Reply queues must use noAck: true
-          prefetchCount: 10,
-          socketOptions: {
-            heartbeatIntervalInSeconds: 60,
-            reconnectTimeInSeconds: 5,
-          },
+          noAck: true,
+          prefetchCount: 1,
         },
       },
     ]),
