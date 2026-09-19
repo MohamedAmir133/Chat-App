@@ -25,4 +25,7 @@ async function bootstrap() {
   await app.listen();
   logger.log(`chat service is running on queue ${queue}`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('[CHAT ERROR] Failed to bootstrap chat service:', err);
+  process.exit(1);
+});

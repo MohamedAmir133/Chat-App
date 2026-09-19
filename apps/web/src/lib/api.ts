@@ -6,8 +6,16 @@ export async function apiRequest<T = any>(
   const baseUrl = isServer ? (process.env.BACKEND_URL || 'http://localhost:6000') : '/api';
   const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const defaultHeaders: HeadersInit = {
+  let token: string | null = null;
+  if (!isServer) {
+    try {
+      token = localStorage.getItem('chat_jwt_token');
+    } catch {}
+  }
+
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const config: RequestInit = {

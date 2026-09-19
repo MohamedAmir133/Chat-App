@@ -117,7 +117,7 @@ export class ChatHttpController {
       const result = await firstValueFrom(
         this.chatClient.send('getUserRooms', {
           userId: (req.user as any).id,
-        }),
+        }).pipe(timeout(10000)),
       );
       return result;
     } catch (err) {

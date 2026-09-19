@@ -27,4 +27,7 @@ async function bootstrap() {
     process.env.USER_QUEUE || 'user_queue',
   );
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('[USER ERROR] Failed to bootstrap user service:', err);
+  process.exit(1);
+});

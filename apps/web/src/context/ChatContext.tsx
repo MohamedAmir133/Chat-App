@@ -481,9 +481,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       // Guard: effect may have been cleaned up before the import resolved
       if (cancelled || !user) return;
 
+      let token: string | null = null;
+      try {
+        token = localStorage.getItem('chat_jwt_token');
+      } catch {}
+
       const socket = io(GATEWAY_URL, {
-        // The jwt httpOnly cookie is sent automatically by the browser when
-        // withCredentials is true — no manual token handling needed on the client.
+        auth: { token },
         withCredentials: true,
         transports: ['websocket', 'polling'],
         reconnectionAttempts: 5,

@@ -89,6 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('[AuthContext] signIn response:', result);
 
+      if (result?.token) {
+        try { localStorage.setItem('chat_jwt_token', result.token); } catch {}
+      }
+
       // Set minimal user from signin response so UI updates immediately
       if (result?.user) {
         const newUser = {
@@ -159,6 +163,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
+      if (result?.token) {
+        try { localStorage.setItem('chat_jwt_token', result.token); } catch {}
+      }
+
       // Set minimal user immediately from signup response
       if (result?.user) {
         setUser({
@@ -191,6 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Sign out error', err);
       toast.error('Failed to sign out properly');
     } finally {
+      try { localStorage.removeItem('chat_jwt_token'); } catch {}
       setUser(null);
     }
   };

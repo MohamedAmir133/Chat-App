@@ -31,24 +31,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(client: Socket) {
     this.logger.log(`Socket attempting connection: ${client.id}`);
     try {
-      // 1. Extract cookies
-      const cookieHeader = client.handshake.headers.cookie;
-      if (!cookieHeader) {
-        this.logger.warn(`[${client.id}] No cookie header — disconnecting`);
-        client.disconnect();
-        return;
+      // 1. Extract token from handshake auth, authorization header, query, or cookie
+      let token: string | undefined =
+        (client.handshake.auth?.token as string | undefined) ||
+        (client.handshake.headers?.authorization?.startsWith('Bearer ')
+          ? client.handshake.headers.authorization.split(' ')[1]
+          : undefined) ||
+        (client.handshake.query?.token as string | undefined);
+
+      if (!token && client.handshake.headers.cookie) {
+        const parsedCookies = cookie.parse(client.handshake.headers.cookie);
+        token = parsedCookies['jwt'];
       }
 
-      // 2. Parse jwt cookie
-      const parsedCookies = cookie.parse(cookieHeader);
-      const token = parsedCookies['jwt'];
       if (!token) {
-        this.logger.warn(`[${client.id}] No jwt cookie found — disconnecting`);
+        this.logger.warn(`[${client.id}] No auth token or cookie header found — disconnecting`);
         client.disconnect();
         return;
       }
 
-      // 3. Verify token
+      // 2. Verify token
       const userId = await this.presenceService.verifyTokenAndGetUserId(token);
       if (!userId) {
         this.logger.warn(`[${client.id}] Token invalid — disconnecting`);
