@@ -35,6 +35,13 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
+          persistent: true,
+          noAck: false,
+          prefetchCount: 10,
+          socketOptions: {
+            heartbeatIntervalInSeconds: 60,
+            reconnectTimeInSeconds: 5,
+          },
         },
       },
       {
@@ -48,6 +55,15 @@ function cleanEnv(val?: string, fallback = ''): string {
           queueOptions: {
             durable: false,
           },
+          // Persistent connection settings
+          persistent: true,
+          noAck: false,
+          prefetchCount: 10,
+          // Socket options for connection stability
+          socketOptions: {
+            heartbeatIntervalInSeconds: 60,
+            reconnectTimeInSeconds: 5,
+          },
         },
       },
       {
@@ -60,6 +76,13 @@ function cleanEnv(val?: string, fallback = ''): string {
           queue: cleanEnv(process.env.USER_QUEUE, 'user_queue'),
           queueOptions: {
             durable: false,
+          },
+          persistent: true,
+          noAck: false,
+          prefetchCount: 10,
+          socketOptions: {
+            heartbeatIntervalInSeconds: 60,
+            reconnectTimeInSeconds: 5,
           },
         },
       },

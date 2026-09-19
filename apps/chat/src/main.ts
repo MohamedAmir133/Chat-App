@@ -34,15 +34,33 @@ async function bootstrap() {
         },
         noAck: false,
         prefetchCount: 1,
+        // Add connection event handlers
+        socketOptions: {
+          heartbeatIntervalInSeconds: 60,
+          reconnectTimeInSeconds: 5,
+        },
       },
       logger: ['error', 'warn', 'log', 'debug'],
     },
   );
   
+  // Log RabbitMQ connection events
   app.enableShutdownHooks();
+  
+  logger.log(`🔌 Attempting to connect to RabbitMQ and subscribe to queue...`);
+  
   await app.listen();
   logger.log(`✅ Chat service is running on queue ${queue}`);
   logger.log(`🎯 Waiting for messages on RabbitMQ...`);
+  logger.log(`📝 Listening for message patterns: getUserRooms, createRoom, etc.`);
+  
+  // Test that the controller is registered
+  const server = app.get('ChatController');
+  if (server) {
+    logger.log(`✅ ChatController is registered and ready`);
+  } else {
+    logger.error(`❌ ChatController NOT registered!`);
+  }
 }
 
 bootstrap().catch((err) => {
