@@ -40,6 +40,30 @@ The system is decoupled into event-driven NestJS microservices communicating asy
 
 ```mermaid
 graph TD
+    Client["Next.js 14 Web Frontend"] -->|REST / HTTP| Gateway["API Gateway - NestJS"]
+    Client -->|WebSockets| SocketServer["Socket.io Gateway Server"]
+
+    subgraph "Event-Driven Microservices Layer - RabbitMQ Broker"
+        Gateway -->|AMQP RPC| AuthMS["Auth Microservice"]
+        Gateway -->|AMQP RPC| ChatMS["Chat Microservice"]
+        Gateway -->|AMQP RPC| UserMS["User Microservice"]
+        SocketServer -->|AMQP RPC| ChatMS
+        SocketServer -->|AMQP RPC| UserMS
+    end
+
+    subgraph "Persistence and Cloud Layer"
+        AuthMS -->|TypeORM| Postgres[("PostgreSQL / Supabase")]
+        UserMS -->|TypeORM| Postgres
+        ChatMS -->|TypeORM / Room Metadata| Postgres
+        ChatMS -->|Mongoose| MongoDB[("MongoDB Atlas - Messages")]
+        SocketServer -->|ioredis| Redis[("Upstash Redis - Presence")]
+        Client -->|Direct Upload| Cloudinary["Cloudinary Media CDN"]
+    end
+```
+
+<!-- Original diagram kept as text because corrupted emoji bytes break GitHub Mermaid rendering.
+```text
+graph TD
     Client["💻 Next.js 14 Web Frontend"] -->|REST / HTTP| Gateway["⚡ API Gateway (NestJS)"]
     Client -->|WebSockets| SocketServer["🔌 Socket.io Gateway Server"]
 
@@ -60,6 +84,7 @@ graph TD
         Client -->|Direct Upload| Cloudinary["☁️ Cloudinary Media CDN"]
     end
 ```
+-->
 
 ---
 
