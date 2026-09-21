@@ -2,6 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { AuthModule } from './auth.module';
 import { Logger } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import dns from 'node:dns';
+
+dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const logger = new Logger();

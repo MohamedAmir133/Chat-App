@@ -1,8 +1,9 @@
-[phases.install]
-cmds = ["npm install --include=dev"]
-
-[phases.build]
-cmds = ["npm run build:all"]
-
-[start]
-cmd = "npm run start:prod:all"
+# Deployment configuration is disabled for local Docker development.
+# [phases.install]
+# cmds = ["npm install --include=dev"]
+#
+# [phases.build]
+# cmds = ["npm run build:all"]
+#
+# [start]
+# cmd = "npm run start:prod:all"

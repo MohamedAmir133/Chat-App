@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuthHttpController } from './Auth/Auth.controller';
 import { UserHttpController } from './user/User.controller';
 import { ChatHttpController } from './Chat/chat.controller';
@@ -84,13 +82,12 @@ function cleanEnv(val?: string, fallback = ''): string {
     ]),
   ],
   controllers: [
-    AppController,
     AuthHttpController,
     UserHttpController,
     ChatHttpController,
     AdminController,
   ],
-  providers: [AppService],
+  providers: [],
 })
 export class AppModule {}
 

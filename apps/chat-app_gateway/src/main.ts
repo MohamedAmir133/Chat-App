@@ -30,6 +30,14 @@ async function bootstrap() {
     }),
   );
   
+
+    // Support the frontend's same-origin /api/* requests alongside direct API routes.
+    app.use((req, _res, next) => {
+      if (req.url === '/api' || req.url.startsWith('/api/')) {
+        req.url = req.url.slice(4) || '/';
+      }
+      next();
+    });
   app.use(cookieParser('secretKey'));
 
   const uploadDir = join(process.cwd(), 'uploads');
@@ -40,6 +48,17 @@ async function bootstrap() {
   app.useStaticAssets(uploadDir, {
     prefix: '/uploads/',
   });
+
+  const frontendDir = join(process.cwd(), 'apps', 'web', 'out');
+  if (fs.existsSync(frontendDir)) {
+    app.useStaticAssets(frontendDir, {
+      index: 'index.html',
+    });
+    app.getHttpAdapter().getInstance().get('/', (_req: any, res: any) => {
+      res.sendFile(join(frontendDir, 'index.html'));
+    });
+    logger.log(`🌐 Serving frontend from: ${frontendDir}`);
+  }
 
   const port = process.env.PORT ?? 6000;
   await app.listen(port);

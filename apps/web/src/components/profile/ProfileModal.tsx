@@ -28,12 +28,18 @@ interface ProfileModalProps {
 }
 
 // Cloudinary config — uses a free unsigned upload preset
-const CLOUDINARY_CLOUD_NAME =
-  process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'demo';
-const CLOUDINARY_UPLOAD_PRESET =
-  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
+const CLOUDINARY_CLOUD_NAME = 'eiiksdvw';
+const CLOUDINARY_UPLOAD_PRESET = 'LAST dANCE';
 
 async function uploadToCloudinary(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please select an image file.');
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Profile images must be smaller than 5 MB.');
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
@@ -45,7 +51,12 @@ async function uploadToCloudinary(file: File): Promise<string> {
   );
 
   if (!response.ok) {
-    throw new Error('Image upload failed');
+    let message = 'Image upload failed.';
+    try {
+      const error = await response.json();
+      message = error?.error?.message || error?.message || message;
+    } catch {}
+    throw new Error(message);
   }
 
   const data = await response.json();
@@ -109,14 +120,27 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     setPhotoError('');
     setUploadingPhoto(true);
 
+    let cloudUrl: string;
     try {
-      const cloudUrl = await uploadToCloudinary(file);
+      cloudUrl = await uploadToCloudinary(file);
+    } catch (err: any) {
+      setPhotoError(err?.message || 'Image upload failed. Please try again.');
+      setPreviewUrl(null);
+      console.error('Cloudinary upload error:', err);
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
       await updateProfile({ profile_picture: cloudUrl });
       setPreviewUrl(cloudUrl);
     } catch (err: any) {
-      setPhotoError('Upload failed. Please try again.');
-      setPreviewUrl(null);
-      console.error('Photo upload error:', err);
+      setPhotoError(
+        'Image uploaded, but saving your profile failed. Please try again.',
+      );
+      setPreviewUrl(cloudUrl);
+      console.error('Profile image save error:', err);
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

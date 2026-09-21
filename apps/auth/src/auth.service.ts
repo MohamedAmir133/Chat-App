@@ -6,19 +6,18 @@ import * as bycrpt from 'bcryptjs';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
 import { JwtService } from '@nestjs/jwt';
-import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
-import { ResetPasswordDTO } from 'libs/common/dto/auth/resetPassword.dto';
-import { EmailService } from '@libs/email';
 import { UpdatePasswordDTO } from 'libs/common/dto/auth/updatePassword.dto';
 import { userProfileDto } from '@libs/common/dto/users/userProfile.dto';
 /*eslint-disable*/
+/* import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto'; */
+/* import { ResetPasswordDTO } from 'libs/common/dto/auth/resetPassword.dto'; */
+/* import { EmailService } from '@libs/email'; */
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly jwtService: JwtService,
-    private readonly emailService: EmailService,
     @Inject('User_Client') private readonly userClient: ClientProxy,
   ) {}
 
@@ -106,68 +105,30 @@ export class AuthService {
     };
   }
 
-  async forgetPassword(forgetPasswordDTO: ForgetPasswordDTO) {
-    const user = await this.userRepository.findOneBy({
-      email: forgetPasswordDTO.email,
-    });
-    if (!user) {
-      throw new RpcException('User not found');
-    }
+  /*
+  async forgetPassword(dto: ForgetPasswordDTO) {
+    const user = await this.userRepository.findOneBy({ email: dto.email });
+    if (!user) throw new RpcException('User not found');
     const otp = Math.floor(100000 + Math.random() * 900000);
     await this.userRepository.update(user.id, {
-      otp: otp,
+      otp,
       otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
     });
-    const resetUrl = `http://localhost:${process.env.PORT || 6000}/auth/reset-password/${otp}`;
-    try {
-      await this.emailService.sendResetPasswordEmail(user.email, otp, resetUrl);
-      Logger.log(`[ForgetPassword] Reset OTP ${otp} sent to ${user.email}`);
-      return {
-        status: 'success',
-        message:
-          'Reset OTP sent to your email. Please check your inbox (or Spam folder).',
-      };
-    } catch (err: any) {
-      Logger.error(
-        `[ForgetPassword] Email delivery failed for ${user.email}: ${err?.message}`,
-      );
-      throw new RpcException(
-        'Failed to send email. Please check your email configuration or network.',
-      );
-    }
+    // await this.emailService.sendResetPasswordEmail(user.email, otp);
+    return { status: 'success', message: 'Reset OTP sent to your email.' };
   }
 
-  async resetPassword(resetPasswordDTO: ResetPasswordDTO) {
-    if (resetPasswordDTO.password !== resetPasswordDTO.confirmPassword) {
+  async resetPassword(dto: ResetPasswordDTO) {
+    if (dto.password !== dto.confirmPassword) {
       throw new RpcException('password and confirmPassword does not match');
     }
-    const otpNum = Number(resetPasswordDTO.otp);
-    if (!otpNum || isNaN(otpNum)) {
-      throw new RpcException('Invalid OTP format');
-    }
-    const user = await this.userRepository.findOneBy({
-      otp: otpNum,
-    });
-    if (!user) {
-      throw new RpcException('Invalid OTP');
-    }
-    if (!user.otpExpiry || new Date(user.otpExpiry) < new Date()) {
-      await this.userRepository.update(user.id, { otp: null, otpExpiry: null });
-      throw new RpcException('OTP expired, please request a new one');
-    }
-    const hashPassword = await bycrpt.hash(resetPasswordDTO.password, 10);
-    await this.userRepository.update(user.id, {
-      password: hashPassword,
-      otp: null,
-      otpExpiry: null,
-    });
-    const token = this.createToken(user);
-    return {
-      status: 'success',
-      message: 'Password reset successfully',
-      token,
-    };
+    const user = await this.userRepository.findOneBy({ otp: Number(dto.otp) });
+    if (!user) throw new RpcException('Invalid OTP');
+    const password = await bycrpt.hash(dto.password, 10);
+    await this.userRepository.update(user.id, { password, otp: null, otpExpiry: null });
+    return { status: 'success', message: 'Password reset successfully' };
   }
+  */
   async updatePassword(updatePasswordDTO: UpdatePasswordDTO) {
     const user = await this.userRepository.findOne({
       where: { id: updatePasswordDTO.userId },

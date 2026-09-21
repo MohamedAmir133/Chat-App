@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Phone, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { apiRequest } from '@/lib/api';
+/* Forgot-password dependency retained for later re-enabling: */
+/* import { apiRequest } from '@/lib/api'; */
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [bio, setBio] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp] = useState('');
+  /* const [otp, setOtp] = useState(''); */
 
   if (!isOpen) return null;
 
@@ -59,27 +60,25 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           },
         });
         onClose();
+      /*
       } else if (mode === 'forgot') {
         const res = await apiRequest('/auth/forget-password', {
           method: 'POST',
           body: JSON.stringify({ email }),
         });
         setOtp('');
-        setSuccessMsg(res.message || '✅ OTP sent! Check your inbox (or Spam folder) and enter the code below.');
+        setSuccessMsg(res.message || 'OTP sent.');
         setMode('reset');
       } else if (mode === 'reset') {
-        if (password !== confirmPassword) {
-          throw new Error('Passwords do not match. Please re-enter them.');
-        }
-        if (!otp.trim()) {
-          throw new Error('Please enter the OTP code from your email.');
+        if (password !== confirmPassword || !otp.trim()) {
+          throw new Error('Enter a valid OTP and matching passwords.');
         }
         await apiRequest(`/auth/reset-password/${otp.trim()}`, {
           method: 'POST',
           body: JSON.stringify({ password, confirmPassword }),
         });
-        setSuccessMsg('✅ Password reset successfully! Please sign in with your new password.');
         setMode('signin');
+      */
       }
     } catch (err: any) {
       const raw: string = err?.message || '';
@@ -89,12 +88,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         friendly = 'Wrong email or password. Please double-check and try again.';
       } else if (/user not found|no account|does not exist/i.test(raw)) {
         friendly = 'No account found with this email. Did you mean to sign up?';
-      } else if (/email.*already.*exist|already registered|duplicate/i.test(raw)) {
+      } else if (/email.*already.*exist|user already exists|profile already exists|already registered|duplicate/i.test(raw)) {
         friendly = 'An account with this email already exists. Try signing in instead.';
-      } else if (/network|fetch|econnrefused|failed to fetch/i.test(raw)) {
-        friendly = 'Cannot reach the server. Check your internet connection and try again.';
+      /* Forgot-password error handling is disabled with the OTP flow.
+      } else if (/failed to send email|smtp|enetunreach|etimedout|econn|network|fetch|failed to fetch/i.test(raw)) {
+        friendly = 'Password reset email could not be sent. Please try again in a moment.';
       } else if (/otp.*invalid|invalid.*otp|expired/i.test(raw)) {
         friendly = 'The OTP code is invalid or has expired. Request a new one.';
+      */
       } else if (!raw) {
         friendly = 'Something went wrong. Please try again.';
       }
@@ -155,42 +156,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </div>
         )}
 
-        {mode === 'forgot' && (
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: '#1C2024' }}>
-              Forgot Password
-            </h3>
-            <p style={{ fontSize: '13px', color: '#737D8C', margin: 0 }}>
-              Enter your account email to receive an OTP verification code.
-            </p>
-          </div>
-        )}
-
-        {mode === 'reset' && (
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 6px 0', color: '#1C2024' }}>
-              Reset Password
-            </h3>
-            <p style={{ fontSize: '13px', color: '#737D8C', margin: 0 }}>
-              Enter the OTP sent to your email and your new password.
-            </p>
-          </div>
-        )}
-
-        {/* Success message */}
-        {successMsg && (
-          <div style={styles.successNotice}>
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {/* Error notice */}
-        {error && (
-          <div style={styles.errorNotice}>
-            <AlertCircle size={16} color="#EF4444" style={{ flexShrink: 0 }} />
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Forgot-password and OTP reset UI is disabled. */}
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -208,7 +174,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
+          {(mode === 'signin' || mode === 'signup') && (
             <div style={styles.inputGroup}>
               <Mail size={18} color="#8A94A6" style={styles.inputIcon} />
               <input
@@ -222,26 +188,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {mode === 'reset' && (
-            <div style={styles.inputGroup}>
-              <FileText size={18} color="#8A94A6" style={styles.inputIcon} />
-              <input
-                type="text"
-                placeholder="Enter 6-digit OTP Code"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                required
-                style={styles.input}
-              />
-            </div>
-          )}
+          {/* Disabled OTP input retained in the commented handler above. */}
 
-          {(mode === 'signin' || mode === 'signup' || mode === 'reset') && (
+          {(mode === 'signin' || mode === 'signup') && (
             <div style={styles.inputGroup}>
               <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
               <input
                 type="password"
-                placeholder={mode === 'reset' ? 'New Password' : 'Password'}
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -250,12 +204,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {(mode === 'signup' || mode === 'reset') && (
+          {mode === 'signup' && (
             <div style={styles.inputGroup}>
               <Lock size={18} color="#8A94A6" style={styles.inputIcon} />
               <input
                 type="password"
-                placeholder={mode === 'reset' ? 'Confirm New Password' : 'Confirm Password'}
+                placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -290,7 +244,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </>
           )}
 
-          {mode === 'signin' && (
+          {/* {mode === 'signin' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
               <button
                 type="button"
@@ -312,31 +266,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 Forgot Password?
               </button>
             </div>
-          )}
+          )} */}
 
-          {(mode === 'forgot' || mode === 'reset') && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '-4px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signin');
-                  setError(null);
-                  setSuccessMsg(null);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#737D8C',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                ← Back to Sign In
-              </button>
-            </div>
-          )}
+          {/* Forgot-password back link is disabled. */}
 
           <button type="submit" disabled={loading} style={styles.submitBtn}>
             {loading ? (
@@ -345,10 +277,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               'Sign In to Sunday'
             ) : mode === 'signup' ? (
               'Create Free Account'
-            ) : mode === 'forgot' ? (
-              'Send OTP Reset Code'
             ) : (
-              'Reset Password'
+              'Create Free Account'
             )}
           </button>
         </form>

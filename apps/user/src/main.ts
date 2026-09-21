@@ -33,8 +33,8 @@ async function bootstrap() {
         urls: [rmqURL],
         queue: queue,
         queueOptions: { durable: false },
-        noAck: false,
-        prefetchCount: 1,
+        // RPC handlers must not be blocked by a stale unacknowledged request.
+        noAck: true,
       },
       logger: ['error', 'warn', 'log', 'debug'],
     },

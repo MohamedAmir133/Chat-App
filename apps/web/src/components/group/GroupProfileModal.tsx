@@ -9,8 +9,8 @@ import { useChat } from '@/context/ChatContext';
 import { useToast } from '@/context/ToastContext';
 import { useConfirm } from '@/context/ConfirmContext';
 
-const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'demo';
-const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
+const CLOUDINARY_CLOUD_NAME = 'eiiksdvw';
+const CLOUDINARY_UPLOAD_PRESET = 'LAST dANCE';
 
 async function uploadImageToCloud(file: File): Promise<string> {
   try {

@@ -5,7 +5,7 @@ import {
   Controller,
   Inject,
   Logger,
-  Param,
+  /* Param, */
   Post,
   Req,
   Res,
@@ -16,7 +16,7 @@ import { SignUpDTO } from '@libs/database';
 import { firstValueFrom, timeout } from 'rxjs';
 import { BadRequestException } from '@nestjs/common';
 import { SignInDTO } from 'libs/common/dto/auth/signIn.dto';
-import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto';
+/* import { ForgetPasswordDTO } from 'libs/common/dto/auth/forgetpassword.dto'; */
 import type { Response } from 'express';
 import { AuthGuard } from 'libs/Guards';
 import type { Request } from 'express';
@@ -136,42 +136,20 @@ export class AuthHttpController {
     return { status: 'success', message: 'Signed out successfully' };
   }
 
+  /*
   @Post('forget-password')
-  async forgetPassword(@Body() forgetPasswordDTO: ForgetPasswordDTO) {
-    try {
-      const result = await firstValueFrom(
-        this.authClient.send('forgetPassword', forgetPasswordDTO).pipe(timeout(10000)),
-      );
-      return result;
-    } catch (err) {
-      throw new BadRequestException(err?.message || err);
-    }
+  async forgetPassword(@Body() dto: ForgetPasswordDTO) {
+    return await firstValueFrom(this.authClient.send('forgetPassword', dto));
   }
 
   @Post('reset-password/:otp')
-  async resetPassword(
-    @Body()
-    {
-      password,
-      confirmPassword,
-    }: { password: string; confirmPassword: string },
-    @Param('otp') otp: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    try {
-      const result = await firstValueFrom(
-        this.authClient.send('resetPassword', {
-          password,
-          confirmPassword,
-          otp: Number(otp),
-        }),
-      );
-      res.cookie('jwt', result.token, COOKIE_OPTIONS);
-      return result;
-    } catch (err) {
-      throw new BadRequestException(err?.message || err);
-    }
+  async resetPassword(@Body() body: { password: string; confirmPassword: string }, @Param('otp') otp: string) {
+    return await firstValueFrom(this.authClient.send('resetPassword', {
+      ...body,
+      otp: Number(otp),
+    }));
   }
+  */
   @UseGuards(AuthGuard)
   @Post('update-password')
   async updatePassword(

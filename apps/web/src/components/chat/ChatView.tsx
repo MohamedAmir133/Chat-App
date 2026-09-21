@@ -36,8 +36,8 @@ const EMOJI_CATEGORIES = [
   { id: 'objects', label: '🎉', emojis: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🥊', '🎨', '🎬', '🎤', '🎧', '🎷', '🎸', '🎹', '🎮', '🚗', '🚕', '🚙', '🏎️', '🚓', '🚑', '🚒', '✈️', '🚀', '🛸', '🛰️', '⏰', '📱', '💻', '📷', '💡', '💰', '🎁', '🎈', '🎉', '🏆', '💎'] },
 ];
 
-const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'demo';
-const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
+const CLOUDINARY_CLOUD_NAME = 'eiiksdvw';
+const CLOUDINARY_UPLOAD_PRESET = 'LAST dANCE';
 
 async function uploadFileToCloud(file: File): Promise<{ url: string; isVideo: boolean }> {
   const isVideo = file.type.startsWith('video/');
